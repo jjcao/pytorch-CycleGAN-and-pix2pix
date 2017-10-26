@@ -1,1 +1,1 @@
-python train.py --dataroot ../../data/foot --name sc2_p2p --gpu_ids 3 --loadSize 512 --fineSize 512 --save_epoch_freq 1 --model pix2pix --which_model_netG unet_512 --which_direction BtoA --dataset_mode aligned --no_lsgan --norm batch --pool_size 0
+python train.py --dataroot ../../data/foot --name sc2_p2p --gpu_ids 3 --loadSize 512 --fineSize 512 --which_model_netG unet_512 --save_epoch_freq 1 --display_port 8098 --which_direction AtoB --dataset_mode aligned --no_lsgan --pool_size 0 --model pix2pix
