@@ -50,7 +50,21 @@ class BaseModel():
     def load_network(self, network, network_label, epoch_label):
         save_filename = '%s_net_%s.pth' % (epoch_label, network_label)
         save_path = os.path.join(self.save_dir, save_filename)
-        network.load_state_dict(torch.load(save_path))
+        
+        try:
+            network.load_state_dict(torch.load(save_path))
+        except KeyError as e:      
+            # original saved file with DataParallel
+            state_dict = torch.load(save_path)
+            # create new OrderedDict that does not contain `module.`
+            from collections import OrderedDict
+            new_state_dict = OrderedDict()
+            for k, v in state_dict.items():
+                name = k[6:] # remove `model.`
+                new_state_dict[name] = v
+            # load params
+            network.load_state_dict(new_state_dict)
+
     # update learning rate (called once every epoch)
     def update_learning_rate(self):
         for scheduler in self.schedulers:
