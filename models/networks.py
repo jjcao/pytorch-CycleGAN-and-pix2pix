@@ -335,12 +335,17 @@ class UnetSkipConnectionBlock(nn.Module):
                  submodule=None, outermost=False, innermost=False, norm_layer=nn.BatchNorm2d, use_dropout=False):
         super(UnetSkipConnectionBlock, self).__init__()
         self.outermost = outermost
+        
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
         if input_nc is None:
             input_nc = outer_nc
+            
+        self.input_nc = input_nc
+        #self.outer_nc = outer_nc
+        
         downconv = nn.Conv2d(input_nc, inner_nc, kernel_size=4,
                              stride=2, padding=1, bias=use_bias)
         downrelu = nn.LeakyReLU(0.2, True)
@@ -376,11 +381,13 @@ class UnetSkipConnectionBlock(nn.Module):
 
         self.model = nn.Sequential(*model)
 
-    def forward(self, x):
+    def forward(self, x):        
         if self.outermost:
-            return self.model(x)
+            self.output = self.model(x)
         else:
-            return torch.cat([x, self.model(x)], 1)
+            self.output = torch.cat([x, self.model(x)], 1)
+        
+        return self.output
 
 
 # Defines the PatchGAN discriminator with the specified arguments.

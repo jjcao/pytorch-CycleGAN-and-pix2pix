@@ -7,7 +7,7 @@ import util.util as util
 from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
-
+import torch.nn.functional as F
 
 class Pix2PixModel(BaseModel):
     def name(self):
@@ -25,6 +25,7 @@ class Pix2PixModel(BaseModel):
         # load/define networks
         self.netG = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf,
                                       opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
+        self.output_nc = opt.output_nc
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
             self.netD = networks.define_D(opt.input_nc + opt.output_nc, opt.ndf,
@@ -72,6 +73,21 @@ class Pix2PixModel(BaseModel):
         self.real_A = Variable(self.input_A)
         self.fake_B = self.netG.forward(self.real_A)
         self.real_B = Variable(self.input_B)
+       
+        relu = torch.nn.ReLU(True)
+        tanh = torch.nn.Tanh()
+               
+        m1 = self.netG.model.model[1]        
+        conv1 = torch.nn.Conv2d(m1.input_nc*2, self.output_nc, kernel_size=1,stride=1)
+        tmp = relu(conv1(m1.output))
+        self.fake_B1 = F.upsample_bilinear(tmp, scale_factor=2)
+        self.fake_B1 = tanh(self.fake_B1)
+        
+        m2 = m1.model[3]
+        conv2 = torch.nn.Conv2d(m2.input_nc*2, self.output_nc, kernel_size=1,stride=1)
+        tmp = relu(conv2(m2.output))
+        self.fake_B2 = F.upsample_bilinear(tmp, scale_factor=4)
+        self.fake_B2 = tanh(self.fake_B2)        
 
     # no backprop gradients
     def test(self):
@@ -108,9 +124,11 @@ class Pix2PixModel(BaseModel):
 
         # Second, G(A) = B
         self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_A
+        self.loss_G1_L1 = self.criterionL1(self.fake_B1, self.real_B) * self.opt.lambda_A
+        self.loss_G2_L1 = self.criterionL1(self.fake_B2, self.real_B) * self.opt.lambda_A
 
         #self.loss_G = self.loss_G_GAN + self.loss_G_L1 # original
-        self.loss_G = self.loss_G_L1 # jjcao
+        self.loss_G = self.loss_G_L1 + self.loss_G1_L1  + self.loss_G2_L1 # jjcao
 
         self.loss_G.backward()
 
@@ -128,8 +146,8 @@ class Pix2PixModel(BaseModel):
     def get_current_errors(self):
         return OrderedDict([('G_GAN', self.loss_G_GAN.data[0]),
                             ('G_L1', self.loss_G_L1.data[0]),
-                            ('D_real', self.loss_D_real.data[0]),
-                            ('D_fake', self.loss_D_fake.data[0])
+                            ('loss_G1_L1', self.loss_G1_L1.data[0]),
+                            ('loss_G2_L1', self.loss_G2_L1.data[0])
                             ])
 
     def get_current_visuals(self):
