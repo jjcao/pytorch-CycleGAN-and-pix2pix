@@ -5,6 +5,8 @@ from data.data_loader import CreateDataLoader
 from models.models import create_model
 from util.visualizer import Visualizer
 from util import html
+#import pdb; pdb.set_trace()
+
 
 opt = TestOptions().parse()
 opt.nThreads = 1   # test code only supports nThreads = 1
