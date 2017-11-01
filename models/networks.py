@@ -310,6 +310,8 @@ class UnetGenerator(nn.Module):
         self.gpu_ids = gpu_ids
 
         # construct unet structure
+        UnetSkipConnectionBlock.totalDepth = num_downs #jjcao
+        UnetSkipConnectionBlock.outermostOutput_nc = output_nc #jjcao
         unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
         for i in range(num_downs - 5):
             unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, use_dropout=use_dropout)
@@ -331,6 +333,9 @@ class UnetGenerator(nn.Module):
 # X -------------------identity---------------------- X
 #   |-- downsampling -- |submodule| -- upsampling --|
 class UnetSkipConnectionBlock(nn.Module):
+    depth = 0
+    totalDepth = 0
+    outermostOutput_nc = 3
     def __init__(self, outer_nc, inner_nc, input_nc=None,
                  submodule=None, outermost=False, innermost=False, norm_layer=nn.BatchNorm2d, use_dropout=False):
         super(UnetSkipConnectionBlock, self).__init__()
@@ -343,8 +348,10 @@ class UnetSkipConnectionBlock(nn.Module):
         if input_nc is None:
             input_nc = outer_nc
             
-        self.input_nc = input_nc
+        self.input_nc = input_nc #jjcao
         #self.outer_nc = outer_nc
+        self.depth = UnetSkipConnectionBlock.depth
+        UnetSkipConnectionBlock.depth = UnetSkipConnectionBlock.depth + 1
         
         downconv = nn.Conv2d(input_nc, inner_nc, kernel_size=4,
                              stride=2, padding=1, bias=use_bias)
@@ -378,15 +385,29 @@ class UnetSkipConnectionBlock(nn.Module):
                 model = down + [submodule] + up + [nn.Dropout(0.5)]
             else:
                 model = down + [submodule] + up
+                
+            if self.depth > UnetSkipConnectionBlock.totalDepth - 4:
+                relu = torch.nn.ReLU(True)
+                tanh = torch.nn.Tanh()
+                conv1 = torch.nn.Conv2d(self.input_nc*2, UnetSkipConnectionBlock.outermostOutput_nc, kernel_size=1,stride=1)
 
+                self.model1 = nn.Sequential(conv1, relu, tanh)
+                
         self.model = nn.Sequential(*model)
 
+
+        
     def forward(self, x):        
         if self.outermost:
             self.output = self.model(x)
         else:
             self.output = torch.cat([x, self.model(x)], 1)
-        
+            # jjcao
+            if self.depth > UnetSkipConnectionBlock.totalDepth - 4:
+                tmp = self.model1(self.output.clone())
+                scale = pow(2, UnetSkipConnectionBlock.totalDepth-1-self.depth)
+                self.output1 = nn.functional.upsample(tmp, scale_factor=scale, mode='bilinear')
+                
         return self.output
 
 

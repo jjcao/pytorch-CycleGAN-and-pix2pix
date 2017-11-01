@@ -7,7 +7,6 @@ import util.util as util
 from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
-import torch.nn.functional as F
 
 class Pix2PixModel(BaseModel):
     def name(self):
@@ -72,22 +71,7 @@ class Pix2PixModel(BaseModel):
     def forward(self):
         self.real_A = Variable(self.input_A)
         self.fake_B = self.netG.forward(self.real_A)
-        self.real_B = Variable(self.input_B)
-       
-        relu = torch.nn.ReLU(True)
-        tanh = torch.nn.Tanh()
-               
-        m1 = self.netG.model.model[1]        
-        conv1 = torch.nn.Conv2d(m1.input_nc*2, self.output_nc, kernel_size=1,stride=1)
-        tmp = relu(conv1(m1.output))
-        self.fake_B1 = F.upsample_bilinear(tmp, scale_factor=2)
-        self.fake_B1 = tanh(self.fake_B1)
-        
-        m2 = m1.model[3]
-        conv2 = torch.nn.Conv2d(m2.input_nc*2, self.output_nc, kernel_size=1,stride=1)
-        tmp = relu(conv2(m2.output))
-        self.fake_B2 = F.upsample_bilinear(tmp, scale_factor=4)
-        self.fake_B2 = tanh(self.fake_B2)        
+        self.real_B = Variable(self.input_B)              
 
     # no backprop gradients
     def test(self):
@@ -122,13 +106,19 @@ class Pix2PixModel(BaseModel):
         pred_fake = self.netD.forward(fake_AB)
         self.loss_G_GAN = self.criterionGAN(pred_fake, True)
 
+        m1 = self.netG.model.model[1]        
+#        self.fake_B1 = m1.output1      
+        m2 = m1.model[3]
+#        self.fake_B2 = m2.output1
+        
         # Second, G(A) = B
         self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_A
-        self.loss_G1_L1 = self.criterionL1(self.fake_B1, self.real_B) * self.opt.lambda_A
-        self.loss_G2_L1 = self.criterionL1(self.fake_B2, self.real_B) * self.opt.lambda_A
+        self.loss_G1_L1 = self.criterionL1(m1.output1, self.real_B) * self.opt.lambda_A
+        self.loss_G2_L1 = self.criterionL1(m2.output1, self.real_B) * self.opt.lambda_A
 
         #self.loss_G = self.loss_G_GAN + self.loss_G_L1 # original
         self.loss_G = self.loss_G_L1 + self.loss_G1_L1  + self.loss_G2_L1 # jjcao
+#        self.loss_G = self.loss_G_L1
 
         self.loss_G.backward()
 
