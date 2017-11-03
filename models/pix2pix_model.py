@@ -41,6 +41,7 @@ class Pix2PixModel(BaseModel):
             # define loss functions
             self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
             self.criterionL1 = torch.nn.L1Loss()
+            self.criterionL2 = torch.nn.MSELoss()
 
             # initialize optimizers
             self.schedulers = []
@@ -102,22 +103,21 @@ class Pix2PixModel(BaseModel):
 
     def backward_G(self):
         # First, G(A) should fake the discriminator
-        fake_AB = torch.cat((self.real_A, self.fake_B), 1)
+        fake_AB = torch.cat((self.real_B, self.fake_B), 1)
         pred_fake = self.netD.forward(fake_AB)
         self.loss_G_GAN = self.criterionGAN(pred_fake, True)
 
-        m1 = self.netG.model.model[1]        
-#        self.fake_B1 = m1.output1      
+        m1 = self.netG.model.model[1]       
         m2 = m1.model[3]
-#        self.fake_B2 = m2.output1
         
         # Second, G(A) = B
         self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_A
-        self.loss_G1_L1 = self.criterionL1(m1.output1, self.real_B) * self.opt.lambda_A
-        self.loss_G2_L1 = self.criterionL1(m2.output1, self.real_B) * self.opt.lambda_A
+        self.loss_G_L2 = self.criterionL2(self.fake_B, self.real_B) * 0.5 * self.opt.lambda_A
+        self.loss_G1_L1 = self.criterionL1(m1.output1, self.real_B) * 0.5 * self.opt.lambda_A
+        self.loss_G2_L1 = self.criterionL1(m2.output1, self.real_B) * 0.5 * self.opt.lambda_A
 
         #self.loss_G = self.loss_G_GAN + self.loss_G_L1 # original
-        self.loss_G = self.loss_G_L1 + self.loss_G1_L1  + self.loss_G2_L1 # jjcao
+        self.loss_G = self.loss_G_L1 + self.loss_G_L2 + self.loss_G1_L1 + self.loss_G2_L1 + self.loss_G_GAN # jjcao
 #        self.loss_G = self.loss_G_L1
 
         self.loss_G.backward()
@@ -136,6 +136,7 @@ class Pix2PixModel(BaseModel):
     def get_current_errors(self):
         return OrderedDict([('G_GAN', self.loss_G_GAN.data[0]),
                             ('G_L1', self.loss_G_L1.data[0]),
+                            ('G_L2', self.loss_G_L2.data[0]),
                             ('loss_G1_L1', self.loss_G1_L1.data[0]),
                             ('loss_G2_L1', self.loss_G2_L1.data[0])
                             ])

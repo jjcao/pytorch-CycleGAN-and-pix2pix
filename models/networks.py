@@ -391,7 +391,7 @@ class UnetSkipConnectionBlock(nn.Module):
                 tanh = torch.nn.Tanh()
                 conv1 = torch.nn.Conv2d(self.input_nc*2, UnetSkipConnectionBlock.outermostOutput_nc, kernel_size=1,stride=1)
 
-                self.model1 = nn.Sequential(conv1, relu, tanh)
+                self.model1 = nn.Sequential(relu, conv1, tanh)
                 
         self.model = nn.Sequential(*model)
 
