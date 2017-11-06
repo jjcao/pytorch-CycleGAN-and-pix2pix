@@ -310,7 +310,7 @@ class UnetGenerator(nn.Module):
         self.gpu_ids = gpu_ids
 
         # construct unet structure
-        UnetSkipConnectionBlock.totalDepth = num_downs #jjcao
+        UnetSkipConnectionBlock.totalDepth = num_downs - 1 #jjcao
         UnetSkipConnectionBlock.outermostOutput_nc = output_nc #jjcao
         unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
         for i in range(num_downs - 5):
@@ -351,6 +351,8 @@ class UnetSkipConnectionBlock(nn.Module):
         self.input_nc = input_nc #jjcao
         #self.outer_nc = outer_nc
         self.depth = UnetSkipConnectionBlock.depth
+        print('UnetSkipConnectionBlock.depth = %d' % UnetSkipConnectionBlock.depth)
+
         UnetSkipConnectionBlock.depth = UnetSkipConnectionBlock.depth + 1
         
         downconv = nn.Conv2d(input_nc, inner_nc, kernel_size=4,
@@ -386,7 +388,8 @@ class UnetSkipConnectionBlock(nn.Module):
             else:
                 model = down + [submodule] + up
                 
-            if self.depth > UnetSkipConnectionBlock.totalDepth - 4:
+            #if self.depth > UnetSkipConnectionBlock.totalDepth - 3:
+            if self.depth == 1 or self.depth == 3 or self.depth == 5:    
                 relu = torch.nn.ReLU(True)
                 tanh = torch.nn.Tanh()
                 conv1 = torch.nn.Conv2d(self.input_nc*2, UnetSkipConnectionBlock.outermostOutput_nc, kernel_size=1,stride=1)
@@ -403,9 +406,10 @@ class UnetSkipConnectionBlock(nn.Module):
         else:
             self.output = torch.cat([x, self.model(x)], 1)
             # jjcao
-            if self.depth > UnetSkipConnectionBlock.totalDepth - 4:
+            if hasattr(self, 'model1'):
+            #if self.depth > UnetSkipConnectionBlock.totalDepth - 3:
                 tmp = self.model1(self.output.clone())
-                scale = pow(2, UnetSkipConnectionBlock.totalDepth-1-self.depth)
+                scale = pow(2, UnetSkipConnectionBlock.totalDepth-self.depth)
                 self.output1 = nn.functional.upsample(tmp, scale_factor=scale, mode='bilinear')
                 
         return self.output
