@@ -357,31 +357,37 @@ class UnetSkipConnectionBlock(nn.Module):
         
         downconv = nn.Conv2d(input_nc, inner_nc, kernel_size=4,
                              stride=2, padding=1, bias=use_bias)
+        dcomm_conv = nn.Conv2d(inner_nc, inner_nc, kernel_size=3,
+                             stride=1, padding=1, bias=use_bias)
         downrelu = nn.LeakyReLU(0.2, True)
         downnorm = norm_layer(inner_nc)
         uprelu = nn.ReLU(True)
         upnorm = norm_layer(outer_nc)
+        
+        ucomm_conv = nn.Conv2d(outer_nc, outer_nc,
+                                        kernel_size=3, stride=1,
+                                        padding=1)
 
         if outermost:
             upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
                                         kernel_size=4, stride=2,
-                                        padding=1)
-            down = [downconv]
-            up = [uprelu, upconv, nn.Tanh()]
+                                        padding=1)            
+            down = [downconv, downnorm, downrelu, dcomm_conv, downnorm]
+            up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, nn.Tanh()]
             model = down + [submodule] + up
         elif innermost:
             upconv = nn.ConvTranspose2d(inner_nc, outer_nc,
                                         kernel_size=4, stride=2,
                                         padding=1, bias=use_bias)
-            down = [downrelu, downconv]
-            up = [uprelu, upconv, upnorm]
+            down = [downrelu, downconv, downnorm, downrelu, dcomm_conv]
+            up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, upnorm]
             model = down + up
         else:
             upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
                                         kernel_size=4, stride=2,
                                         padding=1, bias=use_bias)
-            down = [downrelu, downconv, downnorm]
-            up = [uprelu, upconv, upnorm]
+            down = [downrelu, downconv, downnorm, downrelu, dcomm_conv, downnorm]
+            up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, upnorm]
 
             if use_dropout:
                 model = down + [submodule] + up + [nn.Dropout(0.5)]

@@ -103,13 +103,16 @@ class Pix2PixModel(BaseModel):
 
     def backward_G(self):
         # First, G(A) should fake the discriminator
-        fake_AB = torch.cat((self.real_B, self.fake_B), 1)
+        fake_AB = torch.cat((self.real_A, self.fake_B), 1)
         pred_fake = self.netD.forward(fake_AB)
         self.loss_G_GAN = self.criterionGAN(pred_fake, True)
 
-        m5 = self.netG.model.model[1].model[3]     
-        m3 = m5.model[3].model[3]
-        m1 = m3.model[3].model[3]
+#        m5 = self.netG.model.model[1].model[3]     
+#        m3 = m5.model[3].model[3]
+#        m1 = m3.model[3].model[3]
+        m5 = self.netG.model.model[5].model[6]     
+        m3 = m5.model[6].model[6]
+        m1 = m3.model[6].model[6]
         
         # Second, G(A) = B
         self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_A
@@ -119,8 +122,8 @@ class Pix2PixModel(BaseModel):
         self.loss_G5_L1 = self.criterionL1(m5.output1, self.real_B) * 0.5 * self.opt.lambda_A
 
         #self.loss_G = self.loss_G_GAN + self.loss_G_L1 # original
-        #self.loss_G = self.loss_G_L1 + self.loss_G_L2 + self.loss_G1_L1 + self.loss_G2_L1 + self.loss_G_GAN # jjcao
-        self.loss_G = self.loss_G_L1 + self.loss_G1_L1 + self.loss_G3_L1 + self.loss_G5_L1 + self.loss_G_GAN # jjcao
+        #self.loss_G = self.loss_G_L1 + self.loss_G_L2 + self.loss_G1_L1 + self.loss_G2_L1 # jjcao
+        self.loss_G = self.loss_G_L1 + self.loss_G1_L1 + self.loss_G3_L1 + self.loss_G5_L1# jjcao
 
         self.loss_G.backward()
 
