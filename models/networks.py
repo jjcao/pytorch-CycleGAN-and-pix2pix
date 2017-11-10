@@ -371,40 +371,163 @@ class UnetSkipConnectionBlock(nn.Module):
         if outermost:
             upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
                                         kernel_size=4, stride=2,
-                                        padding=1)            
-            down = [downconv, downnorm, downrelu, dcomm_conv, downnorm]
-            up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, nn.Tanh()]
+                                        padding=1)          
+            
+            #conv1
+            down = [downconv, downrelu]
+            #conv2
+            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,stride=1, padding=1, bias=use_bias)]
+            #down += [norm_layer(inner_nc)]
+            down += [nn.LeakyReLU(0.2, True)]
+            #conv3
+            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,
+                             stride=1, padding=1, bias=use_bias)]            
+            
+            #conv1
+            up = [uprelu, upconv, upnorm, nn.ReLU(True)]
+            #conv2
+            up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
+            up += [norm_layer(outer_nc), nn.ReLU(True)]
+            #conv3
+            up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
+            up += [nn.Tanh()]
+            
+            #down = [downconv, downnorm, downrelu, dcomm_conv, downnorm]
+            #up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, nn.Tanh()]
             model = down + [submodule] + up
         elif innermost:
             upconv = nn.ConvTranspose2d(inner_nc, outer_nc,
                                         kernel_size=4, stride=2,
                                         padding=1, bias=use_bias)
-            down = [downrelu, downconv, downnorm, downrelu, dcomm_conv]
-            up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, upnorm]
+            #conv1
+            down = [downrelu, downconv, nn.LeakyReLU(0.2, True)]
+            #conv2
+            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,stride=1, padding=1, bias=use_bias)]
+            down += [nn.LeakyReLU(0.2, True)]
+            #conv3
+            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,
+                             stride=1, padding=1, bias=use_bias)]  
+            
+            #conv1
+            up = [uprelu, upconv, nn.ReLU(True)]
+            #conv2
+            up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
+            up += [nn.ReLU(True)]
+            #conv3
+            up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
+            up += [upnorm]
+            
+            #down = [downrelu, downconv, downnorm, downrelu, dcomm_conv]
+            #up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, upnorm]
             model = down + up
         else:
             upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
                                         kernel_size=4, stride=2,
                                         padding=1, bias=use_bias)
-            down = [downrelu, downconv, downnorm, downrelu, dcomm_conv, downnorm]
-            up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, upnorm]
+            
+            #conv1
+            down = [downrelu, downconv, nn.LeakyReLU(0.2, True)]
+            #conv2
+            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,stride=1, padding=1, bias=use_bias)]
+            down += [nn.LeakyReLU(0.2, True)]
+            #conv3
+            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,
+                             stride=1, padding=1, bias=use_bias)]  
+            down += [downnorm]
+                    
+            #conv1
+            up = [uprelu, upconv, nn.ReLU(True)]
+            #conv2
+            up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
+            up += [nn.ReLU(True)]
+            #conv3
+            up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
+            up += [upnorm]
+            
+            #down = [downrelu, downconv, downnorm, downrelu, dcomm_conv, downnorm]
+            #up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, upnorm]
 
             if use_dropout:
                 model = down + [submodule] + up + [nn.Dropout(0.5)]
             else:
                 model = down + [submodule] + up
                 
-            #if self.depth > UnetSkipConnectionBlock.totalDepth - 3:
-            if self.depth == 1 or self.depth == 3 or self.depth == 5:    
-                relu = torch.nn.ReLU(True)
-                tanh = torch.nn.Tanh()
-                conv1 = torch.nn.Conv2d(self.input_nc*2, UnetSkipConnectionBlock.outermostOutput_nc, kernel_size=1,stride=1)
-
-                self.model1 = nn.Sequential(relu, conv1, tanh)
+#            if self.depth == 1 or self.depth == 3 or self.depth == 5:    
+#                relu = torch.nn.ReLU(True)
+#                tanh = torch.nn.Tanh()
+#                conv1 = torch.nn.Conv2d(self.input_nc*2, UnetSkipConnectionBlock.outermostOutput_nc, kernel_size=1,stride=1)
+#
+#                self.model1 = nn.Sequential(relu, conv1, tanh)
                 
         self.model = nn.Sequential(*model)
 
-
+#    def __init__(self, outer_nc, inner_nc, input_nc=None,
+#                 submodule=None, outermost=False, innermost=False, norm_layer=nn.BatchNorm2d, use_dropout=False):
+#        super(UnetSkipConnectionBlock, self).__init__()
+#        self.outermost = outermost
+#        
+#        if type(norm_layer) == functools.partial:
+#            use_bias = norm_layer.func == nn.InstanceNorm2d
+#        else:
+#            use_bias = norm_layer == nn.InstanceNorm2d
+#        if input_nc is None:
+#            input_nc = outer_nc
+#            
+#        self.input_nc = input_nc #jjcao
+#        #self.outer_nc = outer_nc
+#        self.depth = UnetSkipConnectionBlock.depth
+#        print('UnetSkipConnectionBlock.depth = %d' % UnetSkipConnectionBlock.depth)
+#
+#        UnetSkipConnectionBlock.depth = UnetSkipConnectionBlock.depth + 1
+#        
+#        downconv = nn.Conv2d(input_nc, inner_nc, kernel_size=4,
+#                             stride=2, padding=1, bias=use_bias)
+#        dcomm_conv = nn.Conv2d(inner_nc, inner_nc, kernel_size=3,
+#                             stride=1, padding=1, bias=use_bias)
+#        downrelu = nn.LeakyReLU(0.2, True)
+#        downnorm = norm_layer(inner_nc)
+#        uprelu = nn.ReLU(True)
+#        upnorm = norm_layer(outer_nc)
+#        
+#        ucomm_conv = nn.Conv2d(outer_nc, outer_nc,
+#                                        kernel_size=3, stride=1,
+#                                        padding=1)
+#
+#        if outermost:
+#            upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
+#                                        kernel_size=4, stride=2,
+#                                        padding=1)            
+#            down = [downconv, downnorm, downrelu, dcomm_conv, downnorm]
+#            up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, nn.Tanh()]
+#            model = down + [submodule] + up
+#        elif innermost:
+#            upconv = nn.ConvTranspose2d(inner_nc, outer_nc,
+#                                        kernel_size=4, stride=2,
+#                                        padding=1, bias=use_bias)
+#            down = [downrelu, downconv, downnorm, downrelu, dcomm_conv]
+#            up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, upnorm]
+#            model = down + up
+#        else:
+#            upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
+#                                        kernel_size=4, stride=2,
+#                                        padding=1, bias=use_bias)
+#            down = [downrelu, downconv, downnorm, downrelu, dcomm_conv, downnorm]
+#            up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, upnorm]
+#
+#            if use_dropout:
+#                model = down + [submodule] + up + [nn.Dropout(0.5)]
+#            else:
+#                model = down + [submodule] + up
+#                
+#            #if self.depth > UnetSkipConnectionBlock.totalDepth - 3:
+#            if self.depth == 1 or self.depth == 3 or self.depth == 5:    
+#                relu = torch.nn.ReLU(True)
+#                tanh = torch.nn.Tanh()
+#                conv1 = torch.nn.Conv2d(self.input_nc*2, UnetSkipConnectionBlock.outermostOutput_nc, kernel_size=1,stride=1)
+#
+#                self.model1 = nn.Sequential(relu, conv1, tanh)
+#                
+#        self.model = nn.Sequential(*model)
         
     def forward(self, x):        
         if self.outermost:
