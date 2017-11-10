@@ -452,12 +452,12 @@ class UnetSkipConnectionBlock(nn.Module):
             else:
                 model = down + [submodule] + up
                 
-#            if self.depth == 1 or self.depth == 3 or self.depth == 5:    
-#                relu = torch.nn.ReLU(True)
-#                tanh = torch.nn.Tanh()
-#                conv1 = torch.nn.Conv2d(self.input_nc*2, UnetSkipConnectionBlock.outermostOutput_nc, kernel_size=1,stride=1)
-#
-#                self.model1 = nn.Sequential(relu, conv1, tanh)
+            if self.depth == 1 or self.depth == 3 or self.depth == 5:    
+                relu = torch.nn.ReLU(True)
+                tanh = torch.nn.Tanh()
+                conv1 = torch.nn.Conv2d(self.input_nc*2, UnetSkipConnectionBlock.outermostOutput_nc, kernel_size=1,stride=1)
+
+                self.model1 = nn.Sequential(relu, conv1, tanh)
                 
         self.model = nn.Sequential(*model)
 
@@ -536,7 +536,6 @@ class UnetSkipConnectionBlock(nn.Module):
             self.output = torch.cat([x, self.model(x)], 1)
             # jjcao
             if hasattr(self, 'model1'):
-            #if self.depth > UnetSkipConnectionBlock.totalDepth - 3:
                 tmp = self.model1(self.output.clone())
                 scale = pow(2, UnetSkipConnectionBlock.totalDepth-self.depth)
                 self.output1 = nn.functional.upsample(tmp, scale_factor=scale, mode='bilinear')
