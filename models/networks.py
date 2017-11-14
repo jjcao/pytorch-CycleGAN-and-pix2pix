@@ -371,14 +371,13 @@ class UnetSkipConnectionBlock(nn.Module):
                                         padding=1)          
             
             #conv1
-            down = [downconv, downrelu]
+            down = [downconv, downnorm, downrelu]
             #conv2
             down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,stride=1, padding=1, bias=use_bias)]
-            #down += [norm_layer(inner_nc)]
-            down += [nn.LeakyReLU(0.2, True)]
+            down += [norm_layer(inner_nc), nn.LeakyReLU(0.2, True)]
             #conv3
-            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,
-                             stride=1, padding=1, bias=use_bias)]            
+            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,stride=1, padding=1, bias=use_bias)]            
+            down += [norm_layer(inner_nc)]
             
             #conv1
             up = [uprelu, upconv, upnorm, nn.ReLU(True)]
@@ -397,19 +396,18 @@ class UnetSkipConnectionBlock(nn.Module):
                                         kernel_size=4, stride=2,
                                         padding=1, bias=use_bias)
             #conv1
-            down = [downrelu, downconv, nn.LeakyReLU(0.2, True)]
+            down = [downrelu, downconv, downnorm, downrelu]
             #conv2
             down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,stride=1, padding=1, bias=use_bias)]
-            down += [nn.LeakyReLU(0.2, True)]
+            down += [downnorm, nn.LeakyReLU(0.2, True)]
             #conv3
-            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,
-                             stride=1, padding=1, bias=use_bias)]  
+            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,stride=1, padding=1, bias=use_bias)]  
             
             #conv1
-            up = [uprelu, upconv, nn.ReLU(True)]
+            up = [uprelu, upconv, upnorm, nn.ReLU(True)]
             #conv2
             up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
-            up += [nn.ReLU(True)]
+            up += [upnorm, nn.ReLU(True)]
             #conv3
             up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
             up += [upnorm]
@@ -423,20 +421,20 @@ class UnetSkipConnectionBlock(nn.Module):
                                         padding=1, bias=use_bias)
             
             #conv1
-            down = [downrelu, downconv, nn.LeakyReLU(0.2, True)]
+            down = [downrelu, downconv, downnorm, nn.LeakyReLU(0.2, True)]
             #conv2
             down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,stride=1, padding=1, bias=use_bias)]
-            down += [nn.LeakyReLU(0.2, True)]
+            down += [downnorm, nn.LeakyReLU(0.2, True)]
             #conv3
             down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,
                              stride=1, padding=1, bias=use_bias)]  
             down += [downnorm]
                     
             #conv1
-            up = [uprelu, upconv, nn.ReLU(True)]
+            up = [uprelu, upconv, upnorm, nn.ReLU(True)]
             #conv2
             up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
-            up += [nn.ReLU(True)]
+            up += [upnorm, nn.ReLU(True)]
             #conv3
             up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
             up += [upnorm]
