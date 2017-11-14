@@ -3,7 +3,6 @@ from options.train_options import TrainOptions
 from data.data_loader import CreateDataLoader
 from models.models import create_model
 from util.visualizer import Visualizer
-import pdb; pdb.set_trace()
         
 opt = TrainOptions().parse()
 
@@ -58,11 +57,12 @@ for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
             loss = 0.0
             for j, val_data in enumerate(val_dataset):
                 model.set_input(val_data)
-                loss += model.test()    
-                model.update_learning_rate(loss)
+                loss += model.test()                   
                 #img_path = model.get_image_paths()
                 #print('process image... %s' % img_path)
             loss = loss/len(val_dataset)
+            import pdb; pdb.set_trace()
+            model.update_learning_rate(loss)
             if loss < previous_loss:
                 previous_loss = loss
                 print('saving model (epoch %d, total_steps %d, loss %f)' %
