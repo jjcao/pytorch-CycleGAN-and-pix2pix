@@ -18,11 +18,12 @@ class PspNetGenerator(nn.Module):
 
         self.netFeat = ResnetGeneratorP2p(input_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, 
                                           n_blocks=9, gpu_ids=gpu_ids,n_downsampling = num_downs)      
-        #model = [self.netFeat]
-        self.pool1 = PspPooling(self.netFeat.output_nc, self.netFeat.output_nc/4.0, 64,norm_layer)
-        self.pool2 = PspPooling(self.netFeat.output_nc, self.netFeat.output_nc/4.0, 32,norm_layer)
-        self.pool4 = PspPooling(self.netFeat.output_nc, self.netFeat.output_nc/4.0, 16,norm_layer)
-        self.pool8 = PspPooling(self.netFeat.output_nc, self.netFeat.output_nc/4.0, 8,norm_layer)
+        
+        output_nc_pool = int(self.netFeat.output_nc/4.0)
+        self.pool1 = PspPooling(self.netFeat.output_nc, output_nc_pool, 64, norm_layer)
+        self.pool2 = PspPooling(self.netFeat.output_nc, output_nc_pool, 32, norm_layer)
+        self.pool4 = PspPooling(self.netFeat.output_nc, output_nc_pool, 16, norm_layer)
+        self.pool8 = PspPooling(self.netFeat.output_nc, output_nc_pool, 8, norm_layer)
         
         mult = 2**num_downs
         self.final = [nn.Conv2d(self.netFeat.output_nc*2, ngf*mult, 3, padding=1, bias=False)]       
@@ -44,6 +45,7 @@ class PspNetGenerator(nn.Module):
         self.final += [nn.ReflectionPad2d(3)]
         self.final += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
         self.final += [nn.Tanh()]
+        self.final = nn.Sequential(*(self.final))
         
 
     def forward(self, input):
@@ -65,7 +67,7 @@ class PspNetGenerator(nn.Module):
 
 class PspPooling(nn.Module):
 
-    def __init__(self, in_features, out_features, downsize, upsize=64, norm_layer=nn.BatchNorm2d):
+    def __init__(self, in_features, out_features, downsize, norm_layer=nn.BatchNorm2d):
         super(PspPooling,self).__init__()
 
         self.features = nn.Sequential(
@@ -73,7 +75,7 @@ class PspPooling(nn.Module):
             nn.Conv2d(in_features, out_features, 1, bias=False),
             norm_layer(out_features, momentum=.95),
             nn.ReLU(inplace=True),
-            nn.UpsamplingBilinear2d(upsize)
+            nn.Upsample(scale_factor = downsize)
         )
 
     def forward(self, x):
