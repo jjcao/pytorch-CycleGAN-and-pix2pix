@@ -112,9 +112,9 @@ class Pix2PixModel(BaseModel):
 #        m5 = self.netG.model.model[1].model[3]     
 #        m3 = m5.model[3].model[3]
 #        m1 = m3.model[3].model[3]
-        m5 = self.netG.model.model[5].model[7]     
-        m3 = m5.model[7].model[7]
-        m1 = m3.model[7].model[7]
+        m5 = self.netG.model.model[8].model[9]     
+        m3 = m5.model[9].model[9]
+        m1 = m3.model[9].model[9]
         
         # Second, G(A) = B
         self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_A
