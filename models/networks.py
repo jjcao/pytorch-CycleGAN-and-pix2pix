@@ -4,7 +4,7 @@ from torch.nn import init
 import functools
 from torch.autograd import Variable
 from torch.optim import lr_scheduler
-from network_psp import PspNetGenerator
+from .network_psp import PspNetGenerator
 import numpy as np
 ###############################################################################
 # Functions
