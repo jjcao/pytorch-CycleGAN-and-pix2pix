@@ -13,17 +13,17 @@ dataset = data_loader.load_data()
 dataset_size = len(data_loader)
 print('#training images = %d' % dataset_size)
 
-# data for test
+# data for validate
 from copy import deepcopy 
-test_opt = deepcopy(opt)
-test_opt.phase = 'test'
-test_opt.nThreads = 1   # test code only supports nThreads = 1
-test_opt.batchSize = 1  # test code only supports batchSize = 1
-test_opt.serial_batches = True  # no shuffle
-test_opt.no_flip = True  # no flip
-test_data_loader = CreateDataLoader(test_opt)
-test_dataset = test_data_loader.load_data()
-previous_score = 0.0
+val_opt = deepcopy(opt)
+val_opt.phase = 'test' # val'
+val_opt.nThreads = 1   # val code only supports nThreads = 1
+val_opt.batchSize = 1  # val code only supports batchSize = 1
+val_opt.serial_batches = True  # no shuffle
+val_opt.no_flip = True  # no flip
+val_data_loader = CreateDataLoader(val_opt)
+val_dataset = val_data_loader.load_data()
+previous_loss = 999999999.0
 
 
 #########
@@ -31,16 +31,6 @@ model = create_model(opt)
 visualizer = Visualizer(opt)
 total_steps = 0
 
-#########
-import matlab.engine # matlab 2017b is needed for python 3.6!!!
-eng = matlab.engine.start_matlab()
-
-# create website
-import os
-from util import html
-test_opt.results_dir = './results/'
-web_dir = os.path.join(test_opt.results_dir, test_opt.name)
-webpage = html.HTML(web_dir, 'Experiment = %s, Phase = %s' % (test_opt.name, test_opt.phase))
 
 for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
     epoch_start_time = time.time()
@@ -63,22 +53,20 @@ for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
             if opt.display_id > 0:
                 visualizer.plot_current_errors(epoch, float(epoch_iter)/dataset_size, opt, errors)
 
-        # test
+        #validate
         if total_steps % opt.save_latest_freq == 0:
-            for j, test_data in enumerate(test_dataset):
-                model.set_input(test_data)
-                model.test()
-                visuals = model.get_current_visuals()
-                img_path = model.get_image_paths()
-                print('process image... %s' % img_path)
-                visualizer.save_images(webpage, visuals, img_path)
+            for j, val_data in enumerate(val_dataset):
+                model.set_input(val_data)
+                loss = model.test()    
+                model.update_learning_rate(loss)
+                #img_path = model.get_image_paths()
+                #print('process image... %s' % img_path)
             
-            score = eng.compute_metric(opt.dataroot)
-            if score > previous_score:
-                previous_score = score
-                print('saving the latest model (epoch %d, total_steps %d)' %
-                      (epoch, total_steps))
-                model.save('%d-%d' % (epoch, i))
+            if loss < previous_loss:
+                previous_loss = loss
+                print('saving model (epoch %d, total_steps %d, loss %f)' %
+                      (epoch, total_steps, loss))
+                model.save('%d-%d-%f' % (epoch, i, loss))
 
     if epoch % opt.save_epoch_freq == 0:
         print('saving the model at the end of epoch %d, iters %d' %
@@ -88,6 +76,4 @@ for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
 
     print('End of epoch %d / %d \t Time Taken: %d sec' %
           (epoch, opt.niter + opt.niter_decay, time.time() - epoch_start_time))
-    model.update_learning_rate()
-
-eng.quit()
+    

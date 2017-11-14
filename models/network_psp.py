@@ -15,17 +15,16 @@ class PspNetGenerator(nn.Module):
                  norm_layer=nn.BatchNorm2d, use_dropout=False, gpu_ids=[]):
         super(PspNetGenerator, self).__init__()
         self.gpu_ids = gpu_ids
-        
-        n_downsampling = 2
+
         self.netFeat = ResnetGeneratorP2p(input_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, 
-                                          n_blocks=9, gpu_ids=gpu_ids,n_downsampling = n_downsampling)      
+                                          n_blocks=9, gpu_ids=gpu_ids,n_downsampling = num_downs)      
         #model = [self.netFeat]
         self.pool1 = PspPooling(self.netFeat.output_nc, self.netFeat.output_nc/4.0, 64,norm_layer)
         self.pool2 = PspPooling(self.netFeat.output_nc, self.netFeat.output_nc/4.0, 32,norm_layer)
         self.pool4 = PspPooling(self.netFeat.output_nc, self.netFeat.output_nc/4.0, 16,norm_layer)
         self.pool8 = PspPooling(self.netFeat.output_nc, self.netFeat.output_nc/4.0, 8,norm_layer)
         
-        mult = 2**n_downsampling
+        mult = 2**num_downs
         self.final = [nn.Conv2d(self.netFeat.output_nc*2, ngf*mult, 3, padding=1, bias=False)]       
         self.final += [norm_layer(ngf*mult, momentum=.95), nn.ReLU(inplace=True), nn.Dropout(.1)]
         
@@ -33,8 +32,8 @@ class PspNetGenerator(nn.Module):
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
-        for i in range(n_downsampling):
-            mult = 2**(n_downsampling - i)
+        for i in range(num_downs):
+            mult = 2**(num_downs - i)
             self.final += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
                                          kernel_size=3, stride=2,
                                          padding=1, output_padding=1,

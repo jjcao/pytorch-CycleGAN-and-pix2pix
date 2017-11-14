@@ -79,6 +79,8 @@ class Pix2PixModel(BaseModel):
         self.real_A = Variable(self.input_A, volatile=True)
         self.fake_B = self.netG.forward(self.real_A)
         self.real_B = Variable(self.input_B, volatile=True)
+        loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_A
+        return loss_G_L1
 
     # get image paths
     def get_image_paths(self):
