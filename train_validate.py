@@ -57,7 +57,8 @@ for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
             loss = 0.0
             for j, val_data in enumerate(val_dataset):
                 model.set_input(val_data)
-                loss += model.test()                   
+                tmp = model.test()   
+                loss += float(tmp.data[0])/len(val_data)              
                 #img_path = model.get_image_paths()
                 #print('process image... %s' % img_path)
             loss = loss/len(val_dataset)
