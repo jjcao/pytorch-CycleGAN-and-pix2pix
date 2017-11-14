@@ -55,13 +55,14 @@ for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
 
         #validate
         if total_steps % opt.save_latest_freq == 0:
+            loss = 0.0
             for j, val_data in enumerate(val_dataset):
                 model.set_input(val_data)
-                loss = model.test()    
+                loss += model.test()    
                 model.update_learning_rate(loss)
                 #img_path = model.get_image_paths()
                 #print('process image... %s' % img_path)
-            
+            loss = loss/len(val_dataset)
             if loss < previous_loss:
                 previous_loss = loss
                 print('saving model (epoch %d, total_steps %d, loss %f)' %
