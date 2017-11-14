@@ -3,7 +3,7 @@ from options.train_options import TrainOptions
 from data.data_loader import CreateDataLoader
 from models.models import create_model
 from util.visualizer import Visualizer
-        
+import pdb; pdb.set_trace()        
 opt = TrainOptions().parse()
 
 # data for training
@@ -62,7 +62,7 @@ for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
                 #img_path = model.get_image_paths()
                 #print('process image... %s' % img_path)
             loss = loss/len(val_dataset)
-            import pdb; pdb.set_trace()
+            #import pdb; pdb.set_trace()
             model.update_learning_rate(loss)
             if loss < previous_loss:
                 previous_loss = loss
