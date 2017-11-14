@@ -4,6 +4,7 @@ from torch.nn import init
 import functools
 from torch.autograd import Variable
 from torch.optim import lr_scheduler
+from network_psp import PspNetGenerator
 import numpy as np
 ###############################################################################
 # Functions
@@ -77,7 +78,7 @@ def get_norm_layer(norm_type='instance'):
         norm_layer = functools.partial(nn.BatchNorm2d, affine=True)
     elif norm_type == 'instance':
         norm_layer = functools.partial(nn.InstanceNorm2d, affine=False)
-    elif layer_type == 'none':
+    elif norm_type == 'none':
         norm_layer = None
     else:
         raise NotImplementedError('normalization layer [%s] is not found' % norm_type)
@@ -116,7 +117,9 @@ def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch', use_dropo
     elif which_model_netG == 'unet_256':
         netG = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout, gpu_ids=gpu_ids)
     elif which_model_netG == 'unet_512': #jjcao
-        netG = UnetGenerator(input_nc, output_nc, 9, ngf, norm_layer=norm_layer, use_dropout=use_dropout, gpu_ids=gpu_ids)    
+        netG = UnetGenerator(input_nc, output_nc, 9, ngf, norm_layer=norm_layer, use_dropout=use_dropout, gpu_ids=gpu_ids) 
+    elif which_model_netG == 'pspnet_256': #jjcao
+        netG = PspNetGenerator(input_nc, output_nc, 2, ngf, norm_layer=norm_layer, use_dropout=use_dropout, gpu_ids=gpu_ids)    
     else:
         raise NotImplementedError('Generator model name [%s] is not recognized' % which_model_netG)
     if len(gpu_ids) > 0:
@@ -357,16 +360,10 @@ class UnetSkipConnectionBlock(nn.Module):
         
         downconv = nn.Conv2d(input_nc, inner_nc, kernel_size=4,
                              stride=2, padding=1, bias=use_bias)
-        dcomm_conv = nn.Conv2d(inner_nc, inner_nc, kernel_size=3,
-                             stride=1, padding=1, bias=use_bias)
         downrelu = nn.LeakyReLU(0.2, True)
         downnorm = norm_layer(inner_nc)
         uprelu = nn.ReLU(True)
         upnorm = norm_layer(outer_nc)
-        
-        ucomm_conv = nn.Conv2d(outer_nc, outer_nc,
-                                        kernel_size=3, stride=1,
-                                        padding=1)
 
         if outermost:
             upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
