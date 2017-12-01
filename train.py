@@ -3,13 +3,15 @@ from options.train_options import TrainOptions
 from data.data_loader import CreateDataLoader
 from models.models import create_model
 from util.visualizer import Visualizer
-#import pdb; pdb.set_trace()
+import pdb; pdb.set_trace()
 
 
 opt = TrainOptions().parse()
 data_loader = CreateDataLoader(opt)
 dataset = data_loader.load_data()
 dataset_size = len(data_loader)
+#tmp = dataset.dataset.__getitem__(0)
+#tmp['Box']
 print('#training images = %d' % dataset_size)
 
 model = create_model(opt)

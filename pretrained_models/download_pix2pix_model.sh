@@ -8,6 +8,7 @@ mkdir -p ./checkpoints/${FILE}_pretrained
 MODEL_FILE=./checkpoints/${FILE}_pretrained/latest_net_G.pth
 URL=https://people.eecs.berkeley.edu/~taesung_park/pytorch-CycleGAN-and-pix2pix/pix2pix_models/$FILE.pth
 
-wget -N $URL -O $MODEL_FILE
-
-
+# for linux
+#wget -N $URL -O $MODEL_FILE
+# for mac
+curl -O -N $URL $MODEL_FILE
