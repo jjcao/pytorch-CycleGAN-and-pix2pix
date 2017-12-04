@@ -16,7 +16,42 @@ def tensor2im(image_tensor, imtype=np.uint8):
     image_numpy = (np.transpose(image_numpy, (1, 2, 0)) + 1) / 2.0 * 255.0
     return image_numpy.astype(imtype)
 
+# jjcao
+def naive_line(r0, c0, r1, c1):
+    # The algorithm below works fine if c1 >= c0 and c1-c0 >= abs(r1-r0).
+    # If either of these cases are violated, do some switches.
+    if abs(c1-c0) < abs(r1-r0):
+        # Switch x and y, and switch again when returning.
+        xx, yy, val = naive_line(c0, r0, c1, r1)
+        return (yy, xx, val)
 
+    # At this point we know that the distance in columns (x) is greater
+    # than that in rows (y). Possibly one more switch if c0 > c1.
+    if c0 > c1:
+        return naive_line(r1, c1, r0, c0)
+
+    # We write y as a function of x, because the slope is always <= 1
+    # (in absolute value)
+    x = np.arange(c0, c1+1, dtype=float)
+    y = x * (r1-r0) / (c1-c0) + (c1*r0-c0*r1) / (c1-c0)
+
+    valbot = np.floor(y)-y+1
+    valtop = y-np.floor(y)
+
+    return (np.concatenate((np.floor(y), np.floor(y)+1)).astype(int), np.concatenate((x,x)).astype(int),
+            np.concatenate((valbot, valtop)))
+# jjcao
+def draw_2lines(im_arr, xy, im_size):
+    x, y, val  = naive_line(*xy[0:4])
+    x[x>im_size-1]=im_size
+    y[y>im_size-1]=im_size
+    
+    im_arr[y, x, 0] = val * 255
+    x, y, val  = naive_line(*xy[4:8])
+    x[x>im_size-1]=im_size
+    y[y>im_size-1]=im_size
+    im_arr[y, x, 0] = val * 255
+    
 def diagnose_network(net, name='network'):
     mean = 0.0
     count = 0
