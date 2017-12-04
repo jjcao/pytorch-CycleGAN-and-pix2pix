@@ -44,12 +44,16 @@ def naive_line(r0, c0, r1, c1):
 def draw_2lines(im_arr, xy, im_size):
     x, y, val  = naive_line(*xy[0:4])
     x[x>im_size-1]=im_size
+    x[x<0]=0
     y[y>im_size-1]=im_size
+    y[y<0]=0
     
     im_arr[y, x, 0] = val * 255
     x, y, val  = naive_line(*xy[4:8])
     x[x>im_size-1]=im_size
+    x[x<0]=0
     y[y>im_size-1]=im_size
+    [y<0]=0
     im_arr[y, x, 0] = val * 255
     
 def diagnose_network(net, name='network'):
