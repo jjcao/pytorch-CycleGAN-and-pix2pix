@@ -139,7 +139,7 @@ class Pix2PixModel(BaseModel):
         
         # Second, G(A) = B
         self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_A
-        if self.pred_Box:
+        if self.origin_im_size:
             #torch.nn.L1Loss()
             self.loss_box = torch.nn.MSELoss()(self.pred_Box, self.input_Box) * self.opt.lambda_A * 0.5
             self.loss_G = self.loss_G_L1 + self.loss_box + self.loss_G_GAN
@@ -170,7 +170,7 @@ class Pix2PixModel(BaseModel):
 
     def get_current_errors(self):
         #jjcao
-        if self.pred_Box:
+        if self.origin_im_size:
             return OrderedDict([('G_GAN', self.loss_G_GAN.data[0]),
                                 ('G_L1', self.loss_G_L1.data[0]),
                                 ('G_Box', self.loss_box.data[0]),
@@ -197,7 +197,7 @@ class Pix2PixModel(BaseModel):
         real_B = util.tensor2im(self.real_B.data)
         
         #jjcao
-        if self.pred_Box:
+        if self.origin_im_size:
             from PIL import ImageDraw    
             input_box = self.input_Box.data.numpy()       
             input_box[::2] = input_box[::2] * self.origin_im_size[0] / self.fine_size
