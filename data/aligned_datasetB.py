@@ -26,7 +26,8 @@ class AlignedDatasetB(BaseDataset):
     def __getitem__(self, index):
         AB_path = self.AB_paths[index]
         AB = Image.open(AB_path).convert('RGB')
-        ratio = [self.opt.loadSize * 2.0/AB.size[0], float(self.opt.loadSize)/AB.size[1]]
+        #ratio = [self.opt.loadSize * 2.0/AB.size[0], float(self.opt.loadSize)/AB.size[1]]
+        AB_origi_size = AB.size
         AB = AB.resize((self.opt.loadSize * 2, self.opt.loadSize), Image.BICUBIC)
         AB = self.transform(AB)
 
@@ -63,12 +64,12 @@ class AlignedDatasetB(BaseDataset):
             B = tmp.unsqueeze(0)
     
         ## get image box coordinate
-        Box = self.get_box_coordinate(AB_path, ratio)
+        Box = self.get_box_coordinate(AB_path, AB_origi_size)
         Box = torch.from_numpy(Box)  # A Tensor
 
         ##add Box
         return {'A': A, 'B': B, 'Box': Box,
-                'A_paths': AB_path, 'B_paths': AB_path}
+                'A_paths': AB_path, 'B_paths': AB_path, 'origi_size': AB_origi_size}
 
     def __len__(self):
         return len(self.AB_paths)
@@ -77,16 +78,16 @@ class AlignedDatasetB(BaseDataset):
         return 'AlignedDatasetB'
     
     ##get  image box coordinate  ## cch
-    def get_box_coordinate(self, path, ratio):
+    def get_box_coordinate(self, path, AB_origi_size):
         s = '/'
         orimage_name = path[path.rfind(s) + 1:-4] # a string
-        orimage_name='1_2_3_4_5_6_7_8'
+        #orimage_name='1_2_3_4_5_6_7_8'
         box  = orimage_name.split('_')
         X_ = box[::2]
         Y_ = box[1::2]
               
-        box[::2] = [(float(x) * ratio[0]) for x in X_]
-        box[1::2] = [(float(y) * ratio[1]) for y in Y_]
+        box[::2] = [(float(x) / AB_origi_size[0]) for x in X_]
+        box[1::2] = [(float(y) / AB_origi_size[1]) for y in Y_]
 
         Box = np.asarray(box)
         return Box

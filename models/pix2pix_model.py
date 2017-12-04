@@ -20,6 +20,7 @@ class Pix2PixModel(BaseModel):
                                    opt.fineSize, opt.fineSize)
         self.input_B = self.Tensor(opt.batchSize, opt.output_nc,
                                    opt.fineSize, opt.fineSize)
+        self.fine_size = opt.fineSize
 
         # load/define networks
         self.netG = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf,
@@ -35,13 +36,13 @@ class Pix2PixModel(BaseModel):
             if self.isTrain:
                 self.load_network(self.netD, 'D', opt.which_epoch)
 
+        self.criterionL1 = torch.nn.L1Loss()
+        self.criterionL2 = torch.nn.MSELoss()
         if self.isTrain:
             self.fake_AB_pool = ImagePool(opt.pool_size)
             self.old_lr = opt.lr
             # define loss functions
-            self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor)
-            self.criterionL1 = torch.nn.L1Loss()
-            self.criterionL2 = torch.nn.MSELoss()
+            self.criterionGAN = networks.GANLoss(use_lsgan=not opt.no_lsgan, tensor=self.Tensor) 
 
             # initialize optimizers
             self.schedulers = []
@@ -65,21 +66,44 @@ class Pix2PixModel(BaseModel):
         AtoB = self.opt.which_direction == 'AtoB'
         input_A = input['A' if AtoB else 'B']
         input_B = input['B' if AtoB else 'A']
+        
+        self.input_Box = None
+        self.origin_im_size = None
+        
+        #jjcao
+        if 'Box' in input.keys():
+            self.input_Box = input['Box']
+            self.origin_im_size = input['origi_size']        
+        
         self.input_A.resize_(input_A.size()).copy_(input_A)
         self.input_B.resize_(input_B.size()).copy_(input_B)
         self.image_paths = input['A_paths' if AtoB else 'B_paths']
 
     def forward(self):
         self.real_A = Variable(self.input_A)
-        self.fake_B = self.netG.forward(self.real_A)
-        self.real_B = Variable(self.input_B)              
+        [self.fake_B, self.pred_Box] = self.netG.forward(self.real_A)
+        self.real_B = Variable(self.input_B) 
+        
+        #jjcao
+        if self.input_Box:
+            self.input_Box = self.input_Box.cuda().float()
+            if self.gpu_ids: 
+                self.input_Box = self.input_Box.cuda()  
+            self.input_Box = Variable(self.input_Box) 
+         
 
     # no backprop gradients
     def test(self):
         self.real_A = Variable(self.input_A, volatile=True)
-        self.fake_B = self.netG.forward(self.real_A)
+        # jjcao
+        [self.fake_B, self.pred_Box] = self.netG.forward(self.real_A)
         self.real_B = Variable(self.input_B, volatile=True)
-        loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_A
+        
+        # jjcao
+        if self.input_Box:
+            self.input_Box = Variable(self.input_Box, volatile=True)  
+            
+        loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
         return loss_G_L1
 
     # get image paths
@@ -109,23 +133,27 @@ class Pix2PixModel(BaseModel):
         pred_fake = self.netD.forward(fake_AB)
         self.loss_G_GAN = self.criterionGAN(pred_fake, True)
 
-#        m5 = self.netG.model.model[1].model[3]     
-#        m3 = m5.model[3].model[3]
-#        m1 = m3.model[3].model[3]
-        m5 = self.netG.model.model[8].model[9]     
-        m3 = m5.model[9].model[9]
-        m1 = m3.model[9].model[9]
+#        m5 = self.netG.model.model[8].model[9]     
+#        m3 = m5.model[9].model[9]
+#        m1 = m3.model[9].model[9]
         
         # Second, G(A) = B
         self.loss_G_L1 = self.criterionL1(self.fake_B, self.real_B) * self.opt.lambda_A
+        if self.pred_Box:
+            #torch.nn.L1Loss()
+            self.loss_box = torch.nn.MSELoss()(self.pred_Box, self.input_Box) * self.opt.lambda_A * 0.5
+            self.loss_G = self.loss_G_L1 + self.loss_box + self.loss_G_GAN
+        else:
+            self.loss_G = self.loss_G_L1 + self.loss_G_GAN
+            
         #self.loss_G_L2 = self.criterionL2(self.fake_B, self.real_B) * 0.5 * self.opt.lambda_A
-        self.loss_G1_L1 = self.criterionL1(m1.output1, self.real_B) * 0.5 * self.opt.lambda_A
-        self.loss_G3_L1 = self.criterionL1(m3.output1, self.real_B) * 0.5 * self.opt.lambda_A
-        self.loss_G5_L1 = self.criterionL1(m5.output1, self.real_B) * 0.5 * self.opt.lambda_A
+        #self.loss_G1_L1 = self.criterionL1(m1.output1, self.real_B) * 0.5 * self.opt.lambda_A
+        #self.loss_G3_L1 = self.criterionL1(m3.output1, self.real_B) * 0.5 * self.opt.lambda_A
+        #self.loss_G5_L1 = self.criterionL1(m5.output1, self.real_B) * 0.5 * self.opt.lambda_A
 
         #self.loss_G = self.loss_G_GAN + self.loss_G_L1 # original
         #self.loss_G = self.loss_G_L1 # jjcao
-        self.loss_G = self.loss_G_L1 + self.loss_G1_L1 + self.loss_G3_L1 + self.loss_G5_L1# jjcao
+        #self.loss_G = self.loss_G_L1 + self.loss_G1_L1 + self.loss_G3_L1 + self.loss_G5_L1# jjcao
 
         self.loss_G.backward()
 
@@ -141,17 +169,52 @@ class Pix2PixModel(BaseModel):
         self.optimizer_G.step()
 
     def get_current_errors(self):
-        return OrderedDict([('G_GAN', self.loss_G_GAN.data[0]),
-                            ('G_L1', self.loss_G_L1.data[0]),
-                            ('loss_G1_L1', self.loss_G1_L1.data[0]),
-                            ('loss_G3_L1', self.loss_G3_L1.data[0]),
-                            ('loss_G5_L1', self.loss_G5_L1.data[0])
-                            ])
+        #jjcao
+        if self.pred_Box:
+            return OrderedDict([('G_GAN', self.loss_G_GAN.data[0]),
+                                ('G_L1', self.loss_G_L1.data[0]),
+                                ('G_Box', self.loss_box.data[0]),
+                                ('D_real', self.loss_D_real.data[0]),
+                                ('D_fake', self.loss_D_fake.data[0]),
+                                #('loss_G1_L1', self.loss_G1_L1.data[0]),
+                                #('loss_G3_L1', self.loss_G3_L1.data[0]),
+                                #('loss_G5_L1', self.loss_G5_L1.data[0])
+                                ])
+        else:
+            return OrderedDict([('G_GAN', self.loss_G_GAN.data[0]),
+                                ('G_L1', self.loss_G_L1.data[0]),
+                                ('G_Box', 0.0),
+                                ('D_real', self.loss_D_real.data[0]),
+                                ('D_fake', self.loss_D_fake.data[0]),
+                                #('loss_G1_L1', self.loss_G1_L1.data[0]),
+                                #('loss_G3_L1', self.loss_G3_L1.data[0]),
+                                #('loss_G5_L1', self.loss_G5_L1.data[0])
+                                ])
 
     def get_current_visuals(self):
         real_A = util.tensor2im(self.real_A.data)
         fake_B = util.tensor2im(self.fake_B.data)
         real_B = util.tensor2im(self.real_B.data)
+        
+        #jjcao
+        if self.pred_Box:
+            from PIL import ImageDraw    
+            input_box = self.input_Box.data.numpy()       
+            input_box[::2] = input_box[::2] * self.origin_im_size[0] / self.fine_size
+            input_box[1::2] = input_box[1::2]* self.origin_im_size[1] / self.fine_size
+            
+            draw = ImageDraw.Draw(real_B)       
+            draw.line(input_box.tolist(), fill='red')
+            del draw
+            
+            pred_Box = self.pred_Box.data.numpy()       
+            pred_Box[::2] = pred_Box[::2] * self.origin_im_size[0] / self.fine_size
+            pred_Box[1::2] = pred_Box[1::2]* self.origin_im_size[1] / self.fine_size
+            
+            draw = ImageDraw.Draw(fake_B)       
+            draw.line(pred_Box.tolist(), fill='red')
+            del draw
+
         return OrderedDict([('real_A', real_A), ('fake_B', fake_B), ('real_B', real_B)])
 
     def save(self, label):

@@ -220,7 +220,7 @@ class ResnetGenerator(nn.Module):
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
 
-        model = [nn.ReflectionPad2d(3),
+        model_head = [nn.ReflectionPad2d(3),
                  nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0,
                            bias=use_bias),
                  norm_layer(ngf),
@@ -229,34 +229,72 @@ class ResnetGenerator(nn.Module):
         n_downsampling = 2
         for i in range(n_downsampling):
             mult = 2**i
-            model += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3,
+            model_head += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3,
                                 stride=2, padding=1, bias=use_bias),
                       norm_layer(ngf * mult * 2),
                       nn.ReLU(True)]
 
         mult = 2**n_downsampling
         for i in range(n_blocks):
-            model += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
+            model_head += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, use_dropout=use_dropout, use_bias=use_bias)]
+        self.model_head = nn.Sequential(*model_head)
+        
+        # jjcao for box
+        # 64=>32
+        model_box_h = [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
+                     norm_layer(ngf * mult * 2), nn.ReLU(True),]
+        # 32 => 16
+        model_box_h += [nn.Conv2d(ngf * mult*2, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
+                     norm_layer(ngf * mult * 2), nn.ReLU(True),]
+        # 16 => 8
+        model_box_h += [nn.Conv2d(ngf * mult*2, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
+                     norm_layer(ngf * mult * 2), nn.ReLU(True),]
+        
+        # x = x.view(x.size(0), -1)
+        #FC: nn.Linear + nn.ReLU
+        #fc6(512* 7*7, 4096), dropout, fc7(4096,4096), dropout, bbox_fc(4096,)
+        
+        model_box_t = [nn.Linear(ngf * mult * 2 * 8*8, 4096), nn.ReLU(True),
+                      nn.Linear(4096, 512), nn.ReLU(True),
+                      nn.Linear(512, 8), nn.ReLU(True),
+                      ]
 
+        self.model_box_h = nn.Sequential(*model_box_h)
+        self.model_box_t = nn.Sequential(*model_box_t)
+        
+        
+
+        #
+        model_tail = []
         for i in range(n_downsampling):
             mult = 2**(n_downsampling - i)
-            model += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
+            model_tail += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
                                          kernel_size=3, stride=2,
                                          padding=1, output_padding=1,
                                          bias=use_bias),
                       norm_layer(int(ngf * mult / 2)),
                       nn.ReLU(True)]
-        model += [nn.ReflectionPad2d(3)]
-        model += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
-        model += [nn.Tanh()]
+        model_tail += [nn.ReflectionPad2d(3)]
+        model_tail += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
+        model_tail += [nn.Tanh()]
 
-        self.model = nn.Sequential(*model)
+        self.model_tail = nn.Sequential(*model_tail)
 
     def forward(self, input):
         if self.gpu_ids and isinstance(input.data, torch.cuda.FloatTensor):
-            return nn.parallel.data_parallel(self.model, input, self.gpu_ids)
+            x = nn.parallel.data_parallel(self.model_head, input, self.gpu_ids)            
+            y = nn.parallel.data_parallel(self.model_box_h, x, self.gpu_ids)
+            y = y.view(y.size(0), -1)
+            box = nn.parallel.data_parallel(self.model_box_t, y, self.gpu_ids)
+            y = nn.parallel.data_parallel(self.model_tail, x, self.gpu_ids)            
+            return [y, box]
         else:
-            return self.model(input)
+            x = self.model_head(input)
+            y = self.model_box_h(x)
+            y = y.view(y.size(0), -1)
+            box = self.model_box_t(y)
+            y = self.model_tail(x)
+            return [y, box]
 
 
 # Define a resnet block
@@ -327,9 +365,9 @@ class UnetGenerator(nn.Module):
 
     def forward(self, input):
         if self.gpu_ids and isinstance(input.data, torch.cuda.FloatTensor):
-            return nn.parallel.data_parallel(self.model, input, self.gpu_ids)
+            return [nn.parallel.data_parallel(self.model, input, self.gpu_ids), None]
         else:
-            return self.model(input)
+            return [self.model(input), None]
 
 
 # Defines the submodule with skip connection.
