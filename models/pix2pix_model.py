@@ -20,7 +20,7 @@ class Pix2PixModel(BaseModel):
                                    opt.fineSize, opt.fineSize)
         self.input_B = self.Tensor(opt.batchSize, opt.output_nc,
                                    opt.fineSize, opt.fineSize)
-        self.fine_size = opt.fineSize
+        self.fine_size = float(opt.fineSize)
 
         # load/define networks
         self.netG = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf,
@@ -85,7 +85,7 @@ class Pix2PixModel(BaseModel):
         self.real_B = Variable(self.input_B) 
         
         #jjcao
-        if self.input_Box:
+        if self.origin_im_size:
             self.input_Box = self.input_Box.cuda().float()
             if self.gpu_ids: 
                 self.input_Box = self.input_Box.cuda()  
@@ -100,7 +100,7 @@ class Pix2PixModel(BaseModel):
         self.real_B = Variable(self.input_B, volatile=True)
         
         # jjcao
-        if self.input_Box:
+        if self.origin_im_size:
             self.input_Box = Variable(self.input_Box, volatile=True)  
             
         loss_G_L1 = self.criterionL1(self.fake_B, self.real_B)
@@ -199,17 +199,19 @@ class Pix2PixModel(BaseModel):
         #jjcao
         if self.origin_im_size:
             from PIL import ImageDraw    
-            input_box = self.input_Box.data.numpy()       
-            input_box[::2] = input_box[::2] * self.origin_im_size[0] / self.fine_size
-            input_box[1::2] = input_box[1::2]* self.origin_im_size[1] / self.fine_size
+            origin_im_size = [float(self.origin_im_size[0].numpy()[0]), float(self.origin_im_size[1].numpy()[0])]
+            
+            input_box = self.input_Box[0].cpu().data.numpy()       
+            input_box[::2] = input_box[::2] * origin_im_size[0] / self.fine_size
+            input_box[1::2] = input_box[1::2]* origin_im_size[1] / self.fine_size
             
             draw = ImageDraw.Draw(real_B)       
             draw.line(input_box.tolist(), fill='red')
             del draw
             
-            pred_Box = self.pred_Box.data.numpy()       
-            pred_Box[::2] = pred_Box[::2] * self.origin_im_size[0] / self.fine_size
-            pred_Box[1::2] = pred_Box[1::2]* self.origin_im_size[1] / self.fine_size
+            pred_Box = self.pred_Box[0].cpu().data.numpy()       
+            pred_Box[::2] = pred_Box[::2] * origin_im_size[0] / self.fine_size
+            pred_Box[1::2] = pred_Box[1::2]* origin_im_size[1] / self.fine_size
             
             draw = ImageDraw.Draw(fake_B)       
             draw.line(pred_Box.tolist(), fill='red')
