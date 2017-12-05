@@ -86,7 +86,7 @@ class AlignedDatasetB(BaseDataset):
         X_ = box[::2]
         Y_ = box[1::2]
               
-        box[::2] = [(float(x) / AB_origi_size[0]) for x in X_]
+        box[::2] = [(float(x)*2 / AB_origi_size[0]) for x in X_]
         box[1::2] = [(float(y) / AB_origi_size[1]) for y in Y_]
 
         Box = np.asarray(box)

@@ -199,18 +199,16 @@ class Pix2PixModel(BaseModel):
         
         #jjcao
         if self.origin_im_size: 
-            origin_im_size = [float(self.origin_im_size[0].numpy()[0]), float(self.origin_im_size[1].numpy()[0])]
+            #origin_im_size = [float(self.origin_im_size[0].numpy()[0]), float(self.origin_im_size[1].numpy()[0])]
             
             input_box = self.input_Box[0].cpu().data.numpy()       
-            input_box[::2] = input_box[::2] * origin_im_size[0] / self.fine_size
-            input_box[1::2] = input_box[1::2]* origin_im_size[1] / self.fine_size           
-            util.draw_2lines(real_B, input_box, self.fine_size)
+            input_box = input_box * self.fine_size          
+            util.draw_2lines(real_B, input_box, [self.fine_size,self.fine_size])
 
            
             pred_Box = self.pred_Box[0].cpu().data.numpy()       
-            pred_Box[::2] = pred_Box[::2] * origin_im_size[0] / self.fine_size
-            pred_Box[1::2] = pred_Box[1::2]* origin_im_size[1] / self.fine_size
-            util.draw_2lines(fake_B, pred_Box, self.fine_size)
+            pred_Box = pred_Box * self.fine_size
+            util.draw_2lines(fake_B, pred_Box, [self.fine_size,self.fine_size])
 
         return OrderedDict([('real_A', real_A), ('fake_B', fake_B), ('real_B', real_B)])
 

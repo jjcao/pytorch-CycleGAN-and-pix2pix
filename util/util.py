@@ -42,19 +42,27 @@ def naive_line(r0, c0, r1, c1):
             np.concatenate((valbot, valtop)))
 # jjcao
 def draw_2lines(im_arr, xy, im_size):
+        
     x, y, val  = naive_line(*xy[0:4])
-    x[x>im_size-1]=im_size-1
+    x[x>im_size[0]-1]=im_size[0]-1
     x[x<0]=0
-    y[y>im_size-1]=im_size-1
+    y[y>im_size[1]-1]=im_size[1]-1
     y[y<0]=0
     
-    im_arr[y, x, 0] = val * 255
+    im_arr[y, x, 0] = 255
+    im_arr[y, x, 1] = 255
+    im_arr[y, x, 2] = 0
+    
+    
     x, y, val  = naive_line(*xy[4:8])
-    x[x>im_size-1]=im_size-1
+    x[x>im_size[0]-1]=im_size[0]-1
     x[x<0]=0
-    y[y>im_size-1]=im_size-1
+    y[y>im_size[1]-1]=im_size[1]-1
     y[y<0]=0
-    im_arr[y, x, 0] = val * 255
+    
+    im_arr[y, x, 0] = 255
+    im_arr[y, x, 1] = 0
+    im_arr[y, x, 2] = 0
     
 def diagnose_network(net, name='network'):
     mean = 0.0
