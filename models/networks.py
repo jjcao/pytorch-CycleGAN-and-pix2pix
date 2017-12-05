@@ -241,23 +241,25 @@ class ResnetGenerator(nn.Module):
         
         # jjcao for box
         # 64=>32
-        model_box_h = [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
-                     norm_layer(ngf * mult * 2), nn.ReLU(True),]
+        model_box_h = [nn.Conv2d(ngf * mult, ngf * mult, kernel_size=3, stride=2, padding=1, bias=use_bias),
+                     norm_layer(ngf * mult), nn.ReLU(True),]
         # 32 => 16
-        model_box_h += [nn.Conv2d(ngf * mult*2, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
-                     norm_layer(ngf * mult * 2), nn.ReLU(True),]
+        model_box_h += [nn.Conv2d(ngf * mult, ngf * mult, kernel_size=3, stride=2, padding=1, bias=use_bias),
+                     norm_layer(ngf * mult), nn.ReLU(True),]
         # 16 => 8
-        model_box_h += [nn.Conv2d(ngf * mult*2, ngf * mult * 2, kernel_size=3, stride=2, padding=1, bias=use_bias),
-                     norm_layer(ngf * mult * 2), nn.ReLU(True),]
+        model_box_h += [nn.Conv2d(ngf * mult, ngf * mult, kernel_size=3, stride=2, padding=1, bias=use_bias),
+                     norm_layer(ngf * mult), nn.ReLU(True),]
         
+        model_box_h += [nn.Conv2d(ngf * mult, ngf, kernel_size=1, stride=1, padding=1, bias=use_bias),
+                     norm_layer(ngf), nn.ReLU(True),]
         # x = x.view(x.size(0), -1)
         #FC: nn.Linear + nn.ReLU
         #fc6(512* 7*7, 4096), dropout, fc7(4096,4096), dropout, bbox_fc(4096,)
         
-        model_box_t = [nn.Linear(ngf * mult * 2 * 8*8, 4096), nn.ReLU(True),
-                      nn.Linear(4096, 512), nn.ReLU(True),
-                      nn.Linear(512, 8), nn.Tanh(),
-                      ]
+        model_box_t = [nn.Linear(ngf * 8*8, 512), nn.Tanh(),
+                      nn.Linear(512, 64), nn.Tanh(),
+                      nn.Linear(64, 8), nn.Sigmoid(), # sigmoid means positive, No need activation？
+                      ]#nn.Tanh(), nn.ReLU(True)
 
         self.model_box_h = nn.Sequential(*model_box_h)
         self.model_box_t = nn.Sequential(*model_box_t)
