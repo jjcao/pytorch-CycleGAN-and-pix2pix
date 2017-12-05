@@ -209,6 +209,9 @@ class Pix2PixModel(BaseModel):
             pred_Box = self.pred_Box[0].cpu().data.numpy()       
             pred_Box = pred_Box * self.fine_size
             util.draw_2lines(fake_B, pred_Box, [self.fine_size,self.fine_size])
+            
+            print(input_box)
+            print(pred_Box)
 
         return OrderedDict([('real_A', real_A), ('fake_B', fake_B), ('real_B', real_B)])
 
