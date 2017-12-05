@@ -256,7 +256,7 @@ class ResnetGenerator(nn.Module):
         
         model_box_t = [nn.Linear(ngf * mult * 2 * 8*8, 4096), nn.ReLU(True),
                       nn.Linear(4096, 512), nn.ReLU(True),
-                      nn.Linear(512, 8), nn.ReLU(True),
+                      nn.Linear(512, 8), nn.Tanh(True),
                       ]
 
         self.model_box_h = nn.Sequential(*model_box_h)
