@@ -3,14 +3,14 @@ from options.train_options import TrainOptions
 from data.data_loader import CreateDataLoader
 from models.models import create_model
 from util.visualizer import Visualizer
-import pdb; pdb.set_trace()
+#import pdb; pdb.set_trace()
 
 
 opt = TrainOptions().parse()
 data_loader = CreateDataLoader(opt)
 dataset = data_loader.load_data()
 dataset_size = len(data_loader)
-#tmp = dataset.dataset.__getitem__(0)
+tmp = dataset.dataset.__getitem__(0)
 #tmp['Box']
 print('#training images = %d' % dataset_size)
 
@@ -18,6 +18,13 @@ model = create_model(opt)
 visualizer = Visualizer(opt)
 total_steps = 0
 
+#os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpu_ids
+#cuda = torch.cuda.is_available()
+#torch.manual_seed(1337)
+#if cuda:
+#    torch.cuda.manual_seed(1337)
+#    print("cuda devices: {} are ready".format(opt.gpu_ids))
+        
 for epoch in range(opt.epoch_count, opt.niter + opt.niter_decay + 1):
     epoch_start_time = time.time()
     epoch_iter = 0

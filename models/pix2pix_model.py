@@ -24,7 +24,8 @@ class Pix2PixModel(BaseModel):
 
         # load/define networks
         self.netG = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf,
-                                      opt.which_model_netG, opt.norm, not opt.no_dropout, opt.init_type, self.gpu_ids)
+                                      opt.which_model_netG, opt.norm, opt.drop_rate, 
+                                      opt.init_type, self.gpu_ids, opt.fineSize)
         self.output_nc = opt.output_nc
         if self.isTrain:
             use_sigmoid = opt.no_lsgan
@@ -35,7 +36,7 @@ class Pix2PixModel(BaseModel):
             self.load_network(self.netG, 'G', opt.which_epoch)
             if self.isTrain:
                 self.load_network(self.netD, 'D', opt.which_epoch)
-
+   
         self.criterionL1 = torch.nn.L1Loss()
         self.criterionL2 = torch.nn.MSELoss()
         if self.isTrain:
@@ -81,8 +82,11 @@ class Pix2PixModel(BaseModel):
 
     def forward(self):
         self.real_A = Variable(self.input_A)
-        [self.fake_B, self.pred_Box] = self.netG.forward(self.real_A)
         self.real_B = Variable(self.input_B) 
+        #self.fake_B = self.netG.forward(self.real_A) 
+        tmp = self.netG.model_head.forward(self.real_A) 
+        self.fake_B = self.netG.model_tail.forward(tmp)     
+        self.pred_Box = self.netG.model_B.forward(tmp)
         
         #jjcao
         if self.origin_im_size:
