@@ -100,7 +100,7 @@ class Pix2PixModel(BaseModel):
     def test(self):
         self.real_A = Variable(self.input_A, volatile=True)
         # jjcao
-        [self.fake_B, self.pred_Box] = self.netG.forward(self.real_A)
+        self.fake_B = self.netG.forward(self.real_A)
         self.real_B = Variable(self.input_B, volatile=True)
         
         # jjcao
