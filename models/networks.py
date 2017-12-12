@@ -147,7 +147,7 @@ def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch',
     netG.model_B = model_B
     
     if gpu_ids:
-        netG = nn.DataParallel(netG, device_ids=gpu_ids).cuda()
+        netG = nn.DataParallel(netG).cuda()
         #netG.cuda(device_id=gpu_ids[0]) # original
     
     init_weights(netG, init_type=init_type)
@@ -172,7 +172,7 @@ def define_D(input_nc, ndf, which_model_netD,
                                   which_model_netD)
     
     if gpu_ids:
-        netD = nn.DataParallel(netD, device_ids=gpu_ids).cuda()
+        netD = nn.DataParallel(netD).cuda()
         
     init_weights(netD, init_type=init_type)
     return netD
