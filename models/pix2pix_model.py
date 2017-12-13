@@ -84,9 +84,15 @@ class Pix2PixModel(BaseModel):
         self.real_A = Variable(self.input_A)
         self.real_B = Variable(self.input_B) 
         #self.fake_B = self.netG.forward(self.real_A) 
-        tmp = self.netG.module.model_head.forward(self.real_A) 
-        self.fake_B = self.netG.module.model_tail.forward(tmp)     
-        self.pred_Box = self.netG.module.model_B.forward(tmp)
+        if torch.cuda.is_available():
+            tmp = self.netG.module.model_head.forward(self.real_A) 
+            self.fake_B = self.netG.module.model_tail.forward(tmp)     
+            self.pred_Box = self.netG.module.model_B.forward(tmp)
+        else:
+            tmp = self.netG.model_head.forward(self.real_A) 
+            self.fake_B = self.netG.model_tail.forward(tmp)     
+            self.pred_Box = self.netG.model_B.forward(tmp)
+            
         
         #jjcao
         if self.origin_im_size:
@@ -118,7 +124,11 @@ class Pix2PixModel(BaseModel):
         # Fake
         # stop backprop to the generator by detaching fake_B
         fake_AB = self.fake_AB_pool.query(torch.cat((self.real_A, self.fake_B), 1))
-        self.pred_fake = self.netD.module.forward(fake_AB.detach())
+        if torch.cuda.is_available():
+            self.pred_fake = self.netD.module.forward(fake_AB.detach())
+        else:
+            self.pred_fake = self.netD.forward(fake_AB.detach())
+            
         self.loss_D_fake = self.criterionGAN(self.pred_fake, False)
 
         # Real
@@ -134,7 +144,11 @@ class Pix2PixModel(BaseModel):
     def backward_G(self):
         # First, G(A) should fake the discriminator
         fake_AB = torch.cat((self.real_A, self.fake_B), 1)
-        pred_fake = self.netD.module.forward(fake_AB)
+        if torch.cuda.is_available():
+            pred_fake = self.netD.module.forward(fake_AB)
+        else:
+            pred_fake = self.netD.forward(fake_AB)
+            
         self.loss_G_GAN = self.criterionGAN(pred_fake, True)
 
 #        m5 = self.netG.model.model[8].model[9]     
