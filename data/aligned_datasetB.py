@@ -82,12 +82,16 @@ class AlignedDatasetB(BaseDataset):
         s = '/'
         orimage_name = path[path.rfind(s) + 1:-4] # a string
         #orimage_name='1_2_3_4_5_6_7_8'
-        box  = orimage_name.split('_')
+        box  = orimage_name.split('_')        
+            
         X_ = box[::2]
         Y_ = box[1::2]
               
         box[::2] = [(float(x)*2 / AB_origi_size[0]) for x in X_]
         box[1::2] = [(float(y) / AB_origi_size[1]) for y in Y_]
 
+        if len(box) < 8:
+            box = [0.5, 0.0, 0.5, 1.0, 0.0, 0.5, 1.0, 0.5]
+            
         Box = np.asarray(box)
         return Box

@@ -96,9 +96,10 @@ class Pix2PixModel(BaseModel):
         
         #jjcao
         if self.origin_im_size:
-            self.input_Box = self.input_Box.cuda().float()
-            if self.gpu_ids: 
-                self.input_Box = self.input_Box.cuda()  
+            self.input_Box = self.input_Box.float()
+            if self.gpu_ids:               
+                self.input_Box = self.input_Box.cuda() 
+
             self.input_Box = Variable(self.input_Box) 
          
 
@@ -106,7 +107,7 @@ class Pix2PixModel(BaseModel):
     def test(self):
         self.real_A = Variable(self.input_A, volatile=True)
         # jjcao
-        self.fake_B = self.netG.forward(self.real_A)
+        [self.fake_B, self.pred_Box] = self.netG.forward(self.real_A)
         self.real_B = Variable(self.input_B, volatile=True)
         
         # jjcao

@@ -28,7 +28,6 @@ class BoxBlock(nn.Module):
             model_head += [nn.Conv2d(num_input_features, num_output_features, 
                                      kernel_size=3, stride=2, padding=1, bias=use_bias),
                                norm_layer(num_output_features), nn.ReLU(True),]
-            n_downsampling += 1
             num_input_features = num_output_features
             num_output_features = num_output_features // 2
         self.model_head = nn.Sequential(*model_head) 

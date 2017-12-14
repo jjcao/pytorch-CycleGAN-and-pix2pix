@@ -90,7 +90,7 @@ class _TransitionUp(nn.Sequential):
 #        return torch.cat([x, new_features], 1)  
         
 #
-class DenseNet(nn.Module):
+class Densenet(nn.Module):
     """Densenet-BC model class, based on
     `"Densely Connected Convolutional Networks" <https://arxiv.org/pdf/1608.06993.pdf>`_
     Args:
@@ -105,7 +105,7 @@ class DenseNet(nn.Module):
                  drop_rate=0.2, growth_rate=32, block_config=(0, 0, 9),
                  bn_size=4, compression=0.5, fine_size=256):
 
-        super(DenseNet, self).__init__()
+        super(Densenet, self).__init__()
 
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
@@ -175,8 +175,9 @@ class DenseNet(nn.Module):
 
     def forward(self, x):
         out = self.model_head(x)
+        box = self.model_B(out)
         out = self.model_tail(out)
-        return out
+        return [out, box]
 
 # "train with RMSprop [33], with an initial learning rate of 1e − 3 and 
 # an exponential decay of 0.995 after each epoch." 

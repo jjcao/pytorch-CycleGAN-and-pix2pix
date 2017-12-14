@@ -5,8 +5,9 @@ import functools
 from torch.autograd import Variable
 from torch.optim import lr_scheduler
 from .network_psp import PspNetGenerator
-
-from .network_densenet import DenseNet, DenseUnet
+from .network_resnet import Resnet
+#, ResUnet
+from .network_densenet import Densenet, DenseUnet
 
 ###############################################################################
 # Functions
@@ -111,31 +112,27 @@ def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch',
     if fine_size == 256:
         n_downsampling = 2
     elif fine_size == 512:
-        n_downsampling = 2 # 3
+        n_downsampling = 3
     else:
         n_downsampling = 2
+        #raise NotImplementedError('downsampling [%s] with fine_size [%d] is not supported' % (n_downsampling,fine_size))
                       
-    if which_model_netG == 'resnet_9blocks' and fine_size == 256:
-        netG = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, 
-                               drop_rate=drop_rate, n_blocks=9, gpu_ids=gpu_ids, n_downsampling=n_downsampling)
-    elif which_model_netG == 'resnet_6blocks' and fine_size == 256:
-        netG = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, 
-                               drop_rate=drop_rate, n_blocks=6, gpu_ids=gpu_ids, n_downsampling=n_downsampling)
-
-    elif which_model_netG == 'DenseUnet':     
+    if which_model_netG == 'resnet':
+        netG = Resnet(input_nc, output_nc, ngf, norm_layer=norm_layer, 
+                               drop_rate=drop_rate, n_blocks=9, 
+                               n_downsampling=n_downsampling, fine_size=fine_size)
+    elif which_model_netG == 'densenet':
+        growth_rate = 32
+        block_config = (0, 0, 9)
+        netG = Densenet(input_nc, output_nc, ngf, norm_layer=norm_layer, drop_rate=drop_rate, 
+                            growth_rate=growth_rate, block_config=block_config, fine_size=fine_size)        
+    elif which_model_netG == 'denseunet':     
         block_config = (4, 5, 7, 10, 12, 15)
         growth_rate = 16
         drop_rate=0.2
         netG = DenseUnet(input_nc, output_nc, ngf=48, norm_layer=norm_layer, 
                          drop_rate=drop_rate, fine_size = fine_size, 
-                         n_layers_per_block=block_config, growth_rate=growth_rate)
-                
-    elif which_model_netG == 'densenet' and fine_size == 256:
-        growth_rate = 32
-        block_config = (0, 0, 9)
-        netG = DenseNet(input_nc, output_nc, ngf, norm_layer=norm_layer, drop_rate=drop_rate, 
-                            growth_rate=growth_rate, block_config=block_config, fine_size=fine_size)
-        
+                         n_layers_per_block=block_config, growth_rate=growth_rate)                        
     elif which_model_netG == 'unet' and fine_size == 128:
         netG = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, drop_rate=drop_rate, gpu_ids=gpu_ids)
     elif which_model_netG == 'unet' and fine_size == 256:
@@ -234,107 +231,6 @@ class GANLoss(nn.Module):
         target_tensor = self.get_target_tensor(input, target_is_real)
         return self.loss(input, target_tensor)
 
-
-# Defines the generator that consists of Resnet blocks between a few
-# downsampling/upsampling operations.
-# Code and idea originally from Justin Johnson's architecture.
-# https://github.com/jcjohnson/fast-neural-style/
-class ResnetGenerator(nn.Module):
-    def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, 
-                 drop_rate=0.5, n_blocks=6, gpu_ids=[], padding_type='reflect',
-                 n_downsampling = 2):
-        assert(n_blocks >= 0)
-        super(ResnetGenerator, self).__init__()
-        self.input_nc = input_nc
-        self.output_nc = output_nc
-        self.ngf = ngf
-        self.gpu_ids = gpu_ids
-        if type(norm_layer) == functools.partial:
-            use_bias = norm_layer.func == nn.InstanceNorm2d
-        else:
-            use_bias = norm_layer == nn.InstanceNorm2d
-
-        model_head = [nn.ReflectionPad2d(3),
-                 nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0,
-                           bias=use_bias),
-                 norm_layer(ngf),
-                 nn.ReLU(True)]
-        
-        for i in range(n_downsampling):
-            mult = 2**i
-            model_head += [nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3,
-                                stride=2, padding=1, bias=use_bias),
-                      norm_layer(ngf * mult * 2),
-                      nn.ReLU(True)]
-
-        mult = 2**n_downsampling
-        for i in range(n_blocks):
-            model_head += [ResnetBlock(ngf * mult, padding_type=padding_type, norm_layer=norm_layer, drop_rate=drop_rate, use_bias=use_bias)]
-        self.model_head = nn.Sequential(*model_head)
-        
-        #############
-        model_tail = []
-        for i in range(n_downsampling):
-            mult = 2**(n_downsampling - i)
-            model_tail += [nn.ConvTranspose2d(ngf * mult, int(ngf * mult / 2),
-                                         kernel_size=3, stride=2,
-                                         padding=1, output_padding=1,
-                                         bias=use_bias),
-                      norm_layer(int(ngf * mult / 2)),
-                      nn.ReLU(True)]
-        model_tail += [nn.ReflectionPad2d(3)]
-        model_tail += [nn.Conv2d(ngf, output_nc, kernel_size=7, padding=0)]
-        model_tail += [nn.Tanh()]
-
-        self.model_tail = nn.Sequential(*model_tail)
-
-#    def forward(self, input):
-#        out = self.model_head(input)
-#        out = self.model_tail(out)
-#        return out
-
-
-# Define a resnet block
-class ResnetBlock(nn.Module):
-    def __init__(self, dim, padding_type, norm_layer, drop_rate, use_bias):
-        super(ResnetBlock, self).__init__()
-        self.conv_block = self.build_conv_block(dim, padding_type, norm_layer, drop_rate, use_bias)
-
-    def build_conv_block(self, dim, padding_type, norm_layer, drop_rate, use_bias):
-        conv_block = []
-        p = 0
-        if padding_type == 'reflect':
-            conv_block += [nn.ReflectionPad2d(1)]
-        elif padding_type == 'replicate':
-            conv_block += [nn.ReplicationPad2d(1)]
-        elif padding_type == 'zero':
-            p = 1
-        else:
-            raise NotImplementedError('padding [%s] is not implemented' % padding_type)
-
-        conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias),
-                       norm_layer(dim),
-                       nn.ReLU(True)]
-        if drop_rate:
-            conv_block += [nn.Dropout(drop_rate)]
-
-        p = 0
-        if padding_type == 'reflect':
-            conv_block += [nn.ReflectionPad2d(1)]
-        elif padding_type == 'replicate':
-            conv_block += [nn.ReplicationPad2d(1)]
-        elif padding_type == 'zero':
-            p = 1
-        else:
-            raise NotImplementedError('padding [%s] is not implemented' % padding_type)
-        conv_block += [nn.Conv2d(dim, dim, kernel_size=3, padding=p, bias=use_bias),
-                       norm_layer(dim)]
-
-        return nn.Sequential(*conv_block)
-
-    def forward(self, x):
-        out = x + self.conv_block(x)
-        return out
 
 
 # Defines the Unet generator.
