@@ -5,8 +5,8 @@ import functools
 from torch.autograd import Variable
 from torch.optim import lr_scheduler
 from .network_psp import PspNetGenerator
-from .network_box import BoxnetGenerator
-from .network_densenet import DenseNet
+
+from .network_densenet import DenseNet, DenseUnet
 
 ###############################################################################
 # Functions
@@ -114,22 +114,27 @@ def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch',
         n_downsampling = 2 # 3
     else:
         n_downsampling = 2
-        
-    #model_B = []                
+                      
     if which_model_netG == 'resnet_9blocks' and fine_size == 256:
         netG = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, 
                                drop_rate=drop_rate, n_blocks=9, gpu_ids=gpu_ids, n_downsampling=n_downsampling)
-        num_input_features = ngf*2**n_downsampling
     elif which_model_netG == 'resnet_6blocks' and fine_size == 256:
         netG = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, 
                                drop_rate=drop_rate, n_blocks=6, gpu_ids=gpu_ids, n_downsampling=n_downsampling)
-        num_input_features = ngf*2**n_downsampling
+
+    elif which_model_netG == 'DenseUnet':     
+        block_config = (4, 5, 7, 10, 12, 15)
+        growth_rate = 16
+        drop_rate=0.2
+        netG = DenseUnet(input_nc, output_nc, ngf=48, norm_layer=norm_layer, 
+                         drop_rate=drop_rate, fine_size = fine_size, 
+                         n_layers_per_block=block_config, growth_rate=growth_rate)
+                
     elif which_model_netG == 'densenet' and fine_size == 256:
         growth_rate = 32
         block_config = (0, 0, 9)
         netG = DenseNet(input_nc, output_nc, ngf, norm_layer=norm_layer, drop_rate=drop_rate, 
-                            growth_rate=growth_rate, block_config=block_config)
-        num_input_features = ngf+growth_rate* block_config[2]
+                            growth_rate=growth_rate, block_config=block_config, fine_size=fine_size)
         
     elif which_model_netG == 'unet' and fine_size == 128:
         netG = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, drop_rate=drop_rate, gpu_ids=gpu_ids)
@@ -141,10 +146,6 @@ def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch',
         netG = PspNetGenerator(input_nc, output_nc, 2, ngf, norm_layer=norm_layer, drop_rate=drop_rate, gpu_ids=gpu_ids)    
     else:
         raise NotImplementedError('Generator model name [%s] with fine_size [%d] is not recognized' % (which_model_netG,fine_size))
-    
-    model_B = BoxnetGenerator(num_input_features, ngf, norm_layer=norm_layer, 
-         drop_rate=drop_rate, fine_size = fine_size, n_downsampling = n_downsampling)
-    netG.model_B = model_B
     
     if gpu_ids:
         netG = nn.DataParallel(netG)

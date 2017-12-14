@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 from collections import OrderedDict
 import functools
+from .base_network import BoxBlock, UBoxBlock
 
 #
 # In original paper, it is BatchNorm2d, ReLU, Conv2d without bias, 
@@ -74,7 +75,7 @@ class _TransitionDown(nn.Sequential):
                                           kernel_size=1, stride=1, bias=use_bias))
         self.add_module('drop', nn.Dropout(drop_rate))
         self.add_module('pool', nn.MaxPool2d(kernel_size=2, stride=2))
-        self.add_module('norm', norm_layer(num_output_features//2))
+        self.add_module('norm', norm_layer(num_output_features))
         self.add_module('relu', nn.ReLU(inplace=True))
         
 class _TransitionUp(nn.Sequential):
@@ -101,8 +102,8 @@ class DenseNet(nn.Module):
         drop_rate (float) - dropout rate after each dense layer
     """
     def __init__(self, input_nc, output_nc, ngf=64, norm_layer=nn.BatchNorm2d, 
-                 drop_rate=0.5, growth_rate=32, block_config=(0, 0, 9),
-                 bn_size=4, compression=0.5):
+                 drop_rate=0.2, growth_rate=32, block_config=(0, 0, 9),
+                 bn_size=4, compression=0.5, fine_size=256):
 
         super(DenseNet, self).__init__()
 
@@ -143,10 +144,16 @@ class DenseNet(nn.Module):
                                             drop_rate, norm_layer, use_bias)
                     self.model_head.add_module('transition%d'%(i+1), block)
                     num_features = int(num_features * compression)
-         
-        #####
-        self.model_tail = nn.Sequential()
+        
+        ############# box
         n_downsampling = len(block_config)-1
+        im_size = fine_size // 2**n_downsampling
+        self.model_B = BoxBlock(num_features, ngf, norm_layer=norm_layer, use_bias = use_bias,
+                                im_size = im_size, drop_rate=drop_rate)
+
+            
+        #####
+        self.model_tail = nn.Sequential()        
         for i in range(n_downsampling):
             #mult = 2**(n_downsampling - i)
             block = nn.Sequential(OrderedDict([
@@ -164,6 +171,7 @@ class DenseNet(nn.Module):
                 ('tanh1', nn.Tanh()),
             ]))
         self.model_tail.add_module('conv71', block)
+        
 
     def forward(self, x):
         out = self.model_head(x)
@@ -179,19 +187,22 @@ class DenseNet(nn.Module):
 # init train: 256, 128, 64, 32, 16, 8  
 # finetune: 512, 256, 128, 64, 32, 16 
 # HeUniform: to do
-class DenseUet(nn.Module):  
+class DenseUnet(nn.Module):  
     def __init__(self, input_nc, output_nc, ngf=48, norm_layer=nn.BatchNorm2d, 
-                 drop_rate=0.2, growth_rate=16, n_layers_per_block=(4, 5, 7, 10, 12, 15)):
+                 drop_rate=0.2, growth_rate=16, n_layers_per_block=(4, 5, 7, 10, 12, 15),
+                 fine_size = 256):
 
-        super(DenseNet, self).__init__()
+        super(DenseUnet, self).__init__()
         
         self.growth_rate = growth_rate
         if type(norm_layer) == functools.partial:
             use_bias = norm_layer.func == nn.InstanceNorm2d
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
-         
+        
+        #####################
         # 1st conv
+        #####################
         self.model_head = nn.Sequential()
         block = nn.Sequential(OrderedDict([
                 ('conv1', nn.Conv2d(input_nc, ngf, kernel_size=3, stride=1, padding=1, bias=use_bias)),
@@ -200,77 +211,104 @@ class DenseUet(nn.Module):
             ]))
         self.model_head.add_module('conv1', block)
 
+        #####################
         # Downsampling path + bottleneck#
+        # 512, 256, 128, 64, 32, 16
+        # 256, 128, 64, 32, 16, 8
+        #####################
+        self.model_dbd = nn.Sequential()
+        self.model_td = nn.Sequential()
+        
         num_features = ngf
         n_skip_connection_planes = []
+        n_downsampling = len(n_layers_per_block) - 1
         for i in range(len(n_layers_per_block)):
             # Dense Block
-            block = _DenseBlock(n_layers_per_block[i], num_features, growth_rate, drop_rate, norm_layer, use_bias)
-            self.model_head.add_module('denseblock%d'%(i+1), block)
+            block = _DenseBlock(n_layers_per_block[i], num_features, growth_rate, 
+                                drop_rate, norm_layer, use_bias, Layer = _DenseLayer1)
+            
+            self.model_dbd.add_module('denseblock%d'%(i+1), block)
+            #self.model_head.add_module('denseblock%d'%(i+1), block)
             #skip_connection_list.append(block)
             
             num_features = num_features + n_layers_per_block[i] * growth_rate
-            n_skip_connection_planes[i] = num_features
+            n_skip_connection_planes.append(num_features)
             # 48 => 48 + 4*16 = 112
             # 112=>112 + 5*16 = 192, ...
             
             if i != len(n_layers_per_block) - 1:
                 block = _TransitionDown(num_features, num_features,
                                         drop_rate, norm_layer, use_bias)
-                self.model_head.add_module('TD%d'%(i+1), block)
+                self.model_td.add_module('TD%d'%(i+1), block)
                 
         #self.n_planes_bottleneck = n_layers_per_block[-1] * growth_rate # 15*16 = 240
         #num_features = num_features - self.n_planes_bottleneck # 896 - 15*16 = 656
         
+        #####################
+        # box block # todo 
+        #####################   
+        im_size = fine_size // 2**n_downsampling
+        self.model_B = UBoxBlock(num_features, ngf, norm_layer=norm_layer, use_bias = use_bias,
+                                im_size = im_size, drop_rate=drop_rate)
+        
+        #####################
         # Upsampling path #
-        self.model_tail = nn.Sequential()
+        #####################
+        self.model_dbu = nn.Sequential()
+        self.model_tu = nn.Sequential()
         n_layers_per_block = n_layers_per_block[::-1]
+        # [896, 656, 464, 304, 192, 112]
         self.n_layers_per_block = n_layers_per_block      
         n_skip_connection_planes = n_skip_connection_planes[::-1]
         
         for i in range(len(n_layers_per_block))[1:]:
             num_features = n_layers_per_block[i-1] * growth_rate
             block = _TransitionUp(num_features, num_features)
-            self.model_tail.add_module('TU%d'%(i+1), block)
+            self.model_tu.add_module('TU%d'%i, block)
             
             
             block = _DenseBlock(n_layers_per_block[i], n_skip_connection_planes[i]+num_features, 
-                                growth_rate, drop_rate, norm_layer, use_bias)
+                                growth_rate, drop_rate, norm_layer, use_bias, Layer = _DenseLayer1)
             # 656 + 15*16 => 656 + 15*16 + 12*16 = 1088
             # 464 + 15*16 => 464 + 12*16 + 10*16 = 816
             # ...
-            self.model_tail.add_module('denseblock%d'%(i+1), block)
+            self.model_dbu.add_module('denseblock%d'%i, block)
        
         # final
+        self.model_tail = nn.Sequential()
+        n_input_features = n_skip_connection_planes[i]+num_features+n_layers_per_block[i] * growth_rate
         block = nn.Sequential(OrderedDict([
-                ('conv2', nn.Conv2d(n_skip_connection_planes[i]+num_features, output_nc, 
+                ('conv2', nn.Conv2d(n_input_features, output_nc, 
                                     kernel_size=1, stride=1, padding=1, bias=use_bias)),
                 ('tanh2', nn.Tanh()),
             ]))
         self.model_tail.add_module('conv2', block)             
   
     def forward(self, x):
-        x = self.model_head[0](x)#.__getitem__(0)
+        x = self.model_head(x)#.__getitem__(0)
         
         skip_connection_list = []
-        for name, module in self.model_head.named_modules():
-            if 'denseblock' in name:
-                x = module(x)
-                skip_connection_list.append(x)
-            elif 'TD' in name:
-                x = module(x)
+        for i in range(len(self.model_dbd)):
+            x = self.model_dbd[i](x)
+            skip_connection_list.append(x)
+            if i < len(self.model_dbd) - 1:
+                x = self.model_td[i](x)
+            
+        ##############
+        box = self.model_B(x)
         
+        #############
         i = 0
-        skip_connection_list = skip_connection_list[1::-1]
-        for name, module in self.model_tail.named_modules():
-            if 'TU' in name:  
-                n_planes_need = self.n_layers_per_block[i] * self.growth_rate
-                x = x[:,n_planes_need-1:,:,:]
-                x = module(x)
-                x = torch.cat([skip_connection_list[i], x], 1)
-                i = i + 1
-            else:
-                x = module(x)
-                    
-        return x    
+        skip_connection_list = skip_connection_list[::-1]
+        skip_connection_list = skip_connection_list[1:]
+        for i in range(len(self.model_tu)):
+            n_planes_need = self.n_layers_per_block[i] * self.growth_rate
+            x = x[:,-n_planes_need:,:,:]
+            x = self.model_tu[i](x)
+            x = torch.cat([skip_connection_list[i], x], 1)
+            x = self.model_dbu[i](x)
+        
+        x = self.model_tail(x)
+           
+        return [x, box]   
    

@@ -5,15 +5,18 @@ from models.models import create_model
 from util.visualizer import Visualizer
 import os
 import torch
-#import pdb; pdb.set_trace()
+import pdb; pdb.set_trace()
 
-
+# 放到最前面，好使，放到TrainOptions().parse()后边，不好使。
+#os.environ['CUDA_VISIBLE_DEVICES'] = '1,2'
+#print("Let's use", torch.cuda.device_count(), "GPUs!")
 opt = TrainOptions().parse()
-os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(str(x) for x in opt.gpu_ids)
-torch.manual_seed(1337)
+#os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(str(x) for x in opt.gpu_ids)
+#print("Let's use", torch.cuda.device_count(), "GPUs!")
+#torch.manual_seed(1337)
 cuda = torch.cuda.is_available()
 if cuda:
-    torch.cuda.manual_seed(1337)
+    #torch.cuda.manual_seed(1337)
     print("cuda devices: {} are ready".format(opt.gpu_ids))
     
 data_loader = CreateDataLoader(opt)

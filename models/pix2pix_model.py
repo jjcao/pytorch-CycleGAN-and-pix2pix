@@ -83,15 +83,15 @@ class Pix2PixModel(BaseModel):
     def forward(self):
         self.real_A = Variable(self.input_A)
         self.real_B = Variable(self.input_B) 
-        #self.fake_B = self.netG.forward(self.real_A) 
-        if torch.cuda.is_available():
-            tmp = self.netG.module.model_head.forward(self.real_A) 
-            self.fake_B = self.netG.module.model_tail.forward(tmp)     
-            self.pred_Box = self.netG.module.model_B.forward(tmp)
-        else:
-            tmp = self.netG.model_head.forward(self.real_A) 
-            self.fake_B = self.netG.model_tail.forward(tmp)     
-            self.pred_Box = self.netG.model_B.forward(tmp)
+        [self.fake_B, self.pred_Box] = self.netG.forward(self.real_A) 
+#        if torch.cuda.is_available():
+#            tmp = self.netG.module.model_head.forward(self.real_A) 
+#            self.fake_B = self.netG.module.model_tail.forward(tmp)     
+#            self.pred_Box = self.netG.module.model_B.forward(tmp)
+#        else:
+#            tmp = self.netG.model_head.forward(self.real_A) 
+#            self.fake_B = self.netG.model_tail.forward(tmp)     
+#            self.pred_Box = self.netG.model_B.forward(tmp)
             
         
         #jjcao
