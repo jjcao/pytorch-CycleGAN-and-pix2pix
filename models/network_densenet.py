@@ -280,7 +280,7 @@ class DenseUnet(nn.Module):
         n_input_features = n_skip_connection_planes[i]+num_features+n_layers_per_block[i] * growth_rate
         block = nn.Sequential(OrderedDict([
                 ('conv2', nn.Conv2d(n_input_features, output_nc, 
-                                    kernel_size=1, stride=1, padding=1, bias=use_bias)),
+                                    kernel_size=1, stride=1, padding=0, bias=use_bias)),
                 ('tanh2', nn.Tanh()),
             ]))
         self.model_tail.add_module('conv2', block)             
