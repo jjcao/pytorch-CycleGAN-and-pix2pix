@@ -126,19 +126,20 @@ def define_G(input_nc, output_nc, ngf, which_model_netG, norm='batch',
         block_config = (0, 0, 9)
         netG = Densenet(input_nc, output_nc, ngf, norm_layer=norm_layer, drop_rate=drop_rate, 
                             growth_rate=growth_rate, block_config=block_config, fine_size=fine_size)        
-    elif which_model_netG == 'denseunet':     
-        block_config = (4, 5, 7, 10, 12, 15)
+    elif which_model_netG == 'denseunet'  and fine_size == 256:     
+        block_config = (5, 7, 10, 12, 15) # to 16*16
         growth_rate = 16
         drop_rate=0.2
         netG = DenseUnet(input_nc, output_nc, ngf=48, norm_layer=norm_layer, 
                          drop_rate=drop_rate, fine_size = fine_size, 
-                         n_layers_per_block=block_config, growth_rate=growth_rate)                        
-    elif which_model_netG == 'unet' and fine_size == 128:
-        netG = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, drop_rate=drop_rate, gpu_ids=gpu_ids)
-    elif which_model_netG == 'unet' and fine_size == 256:
-        netG = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, drop_rate=drop_rate, gpu_ids=gpu_ids)
-    elif which_model_netG == 'unet' and fine_size == 512:
-        netG = UnetGenerator(input_nc, output_nc, 9, ngf, norm_layer=norm_layer, drop_rate=drop_rate, gpu_ids=gpu_ids) 
+                         n_layers_per_block=block_config, growth_rate=growth_rate) 
+    elif which_model_netG == 'denseunet'  and fine_size == 512:     
+        block_config = (4, 5, 7, 10, 12, 15) # 16*16
+        growth_rate = 16
+        drop_rate=0.2
+        netG = DenseUnet(input_nc, output_nc, ngf=48, norm_layer=norm_layer, 
+                         drop_rate=drop_rate, fine_size = fine_size, 
+                         n_layers_per_block=block_config, growth_rate=growth_rate)                          
     elif which_model_netG == 'pspnet' and fine_size == 256:
         netG = PspNetGenerator(input_nc, output_nc, 2, ngf, norm_layer=norm_layer, drop_rate=drop_rate, gpu_ids=gpu_ids)    
     else:
@@ -230,172 +231,6 @@ class GANLoss(nn.Module):
     def __call__(self, input, target_is_real):
         target_tensor = self.get_target_tensor(input, target_is_real)
         return self.loss(input, target_tensor)
-
-
-
-# Defines the Unet generator.
-# |num_downs|: number of downsamplings in UNet. For example,
-# if |num_downs| == 7, image of size 128x128 will become of size 1x1
-# at the bottleneck
-class UnetGenerator(nn.Module):
-    def __init__(self, input_nc, output_nc, num_downs, ngf=64,
-                 norm_layer=nn.BatchNorm2d, drop_rate=0.5, gpu_ids=[]):
-        super(UnetGenerator, self).__init__()
-        self.gpu_ids = gpu_ids
-
-        # construct unet structure
-        UnetSkipConnectionBlock.totalDepth = num_downs - 1 #jjcao
-        UnetSkipConnectionBlock.outermostOutput_nc = output_nc #jjcao
-        unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=None, norm_layer=norm_layer, innermost=True)
-        for i in range(num_downs - 5):
-            unet_block = UnetSkipConnectionBlock(ngf * 8, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer, drop_rate=drop_rate)
-        unet_block = UnetSkipConnectionBlock(ngf * 4, ngf * 8, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-        unet_block = UnetSkipConnectionBlock(ngf * 2, ngf * 4, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-        unet_block = UnetSkipConnectionBlock(ngf, ngf * 2, input_nc=None, submodule=unet_block, norm_layer=norm_layer)
-        unet_block = UnetSkipConnectionBlock(output_nc, ngf, input_nc=input_nc, submodule=unet_block, outermost=True, norm_layer=norm_layer)
-
-        self.model = unet_block
-
-    def forward(self, input):
-        return self.model(input)
-
-
-# Defines the submodule with skip connection.
-# X -------------------identity---------------------- X
-#   |-- downsampling -- |submodule| -- upsampling --|
-class UnetSkipConnectionBlock(nn.Module):
-    depth = 0
-    totalDepth = 0
-    outermostOutput_nc = 3
-    def __init__(self, outer_nc, inner_nc, input_nc=None,
-                 submodule=None, outermost=False, innermost=False, norm_layer=nn.BatchNorm2d, drop_rate=0.0):
-        super(UnetSkipConnectionBlock, self).__init__()
-        self.outermost = outermost
-        
-        if type(norm_layer) == functools.partial:
-            use_bias = norm_layer.func == nn.InstanceNorm2d
-        else:
-            use_bias = norm_layer == nn.InstanceNorm2d
-        if input_nc is None:
-            input_nc = outer_nc
-            
-        self.input_nc = input_nc #jjcao
-        #self.outer_nc = outer_nc
-        self.depth = UnetSkipConnectionBlock.depth
-        print('UnetSkipConnectionBlock.depth = %d' % UnetSkipConnectionBlock.depth)
-
-        UnetSkipConnectionBlock.depth = UnetSkipConnectionBlock.depth + 1
-        
-        downconv = nn.Conv2d(input_nc, inner_nc, kernel_size=4,
-                             stride=2, padding=1, bias=use_bias)
-        downrelu = nn.LeakyReLU(0.2, True)
-        downnorm = norm_layer(inner_nc)
-        uprelu = nn.ReLU(True)
-        upnorm = norm_layer(outer_nc)
-
-        if outermost:
-            upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
-                                        kernel_size=4, stride=2,
-                                        padding=1)          
-            
-            #conv1
-            down = [downconv, downnorm, downrelu]
-            #conv2
-            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,stride=1, padding=1, bias=use_bias)]
-            down += [norm_layer(inner_nc), nn.LeakyReLU(0.2, True)]
-            #conv3
-            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,stride=1, padding=1, bias=use_bias)]            
-            down += [norm_layer(inner_nc)]
-            
-            #conv1
-            up = [uprelu, upconv, upnorm, nn.ReLU(True)]
-            #conv2
-            up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
-            up += [norm_layer(outer_nc), nn.ReLU(True)]
-            #conv3
-            up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
-            up += [nn.Tanh()]
-            
-            #down = [downconv, downnorm, downrelu, dcomm_conv, downnorm]
-            #up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, nn.Tanh()]
-            model = down + [submodule] + up
-        elif innermost:
-            upconv = nn.ConvTranspose2d(inner_nc, outer_nc,
-                                        kernel_size=4, stride=2,
-                                        padding=1, bias=use_bias)
-            #conv1
-            down = [downrelu, downconv, downnorm, downrelu]
-            #conv2
-            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,stride=1, padding=1, bias=use_bias)]
-            down += [downnorm, nn.LeakyReLU(0.2, True)]
-            #conv3
-            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,stride=1, padding=1, bias=use_bias)]  
-            
-            #conv1
-            up = [uprelu, upconv, upnorm, nn.ReLU(True)]
-            #conv2
-            up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
-            up += [upnorm, nn.ReLU(True)]
-            #conv3
-            up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
-            up += [upnorm]
-            
-            #down = [downrelu, downconv, downnorm, downrelu, dcomm_conv]
-            #up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, upnorm]
-            model = down + up
-        else:
-            upconv = nn.ConvTranspose2d(inner_nc * 2, outer_nc,
-                                        kernel_size=4, stride=2,
-                                        padding=1, bias=use_bias)
-            
-            #conv1
-            down = [downrelu, downconv, downnorm, nn.LeakyReLU(0.2, True)]
-            #conv2
-            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,stride=1, padding=1, bias=use_bias)]
-            down += [downnorm, nn.LeakyReLU(0.2, True)]
-            #conv3
-            down += [nn.Conv2d(inner_nc, inner_nc, kernel_size=3,
-                             stride=1, padding=1, bias=use_bias)]  
-            down += [downnorm]
-                    
-            #conv1
-            up = [uprelu, upconv, upnorm, nn.ReLU(True)]
-            #conv2
-            up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
-            up += [upnorm, nn.ReLU(True)]
-            #conv3
-            up += [nn.Conv2d(outer_nc, outer_nc, kernel_size=3, stride=1,padding=1)]
-            up += [upnorm]
-            
-            #down = [downrelu, downconv, downnorm, downrelu, dcomm_conv, downnorm]
-            #up = [uprelu, upconv, upnorm, uprelu, ucomm_conv, upnorm]
-
-            if drop_rate:
-                model = down + [submodule] + up + [nn.Dropout(drop_rate=drop_rate)]
-            else:
-                model = down + [submodule] + up
-                
-            if self.depth == 1 or self.depth == 3 or self.depth == 5:    
-                relu = torch.nn.ReLU(True)
-                tanh = torch.nn.Tanh()
-                conv1 = torch.nn.Conv2d(self.input_nc*2, UnetSkipConnectionBlock.outermostOutput_nc, kernel_size=1,stride=1)
-
-                self.model1 = nn.Sequential(relu, conv1, tanh)
-                
-        self.model = nn.Sequential(*model)
-        
-    def forward(self, x):        
-        if self.outermost:
-            self.output = self.model(x)
-        else:
-            self.output = torch.cat([x, self.model(x)], 1)
-            # jjcao
-            if hasattr(self, 'model1'):
-                tmp = self.model1(self.output.clone())
-                scale = pow(2, UnetSkipConnectionBlock.totalDepth-self.depth)
-                self.output1 = nn.functional.upsample(tmp, scale_factor=scale, mode='bilinear')
-                
-        return self.output
 
 
 # Defines the PatchGAN discriminator with the specified arguments.

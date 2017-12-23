@@ -254,6 +254,8 @@ class DenseUnet(nn.Module):
         
         #####################
         # Upsampling path #
+        # 32, 64, 128, 256, 512
+        # 16, 32, 64, 128, 256
         #####################
         self.model_dbu = nn.Sequential()
         self.model_tu = nn.Sequential()
